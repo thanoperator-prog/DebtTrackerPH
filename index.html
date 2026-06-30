@@ -12,6 +12,9 @@
     <meta name="apple-mobile-web-app-title" content="Debt Tracker">
     <meta name="theme-color" content="#22c55e">
     
+    <!-- Added Favicon to match the Wallet icon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22><path fill=%22%2322c55e%22 d=%22M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L80 128c-8.8 0-16-7.2-16-16s7.2-16 16-16l368 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L64 32zM416 272a32 32 0 1 1 0 64 32 32 0 1 1 0-64z%22/></svg>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
@@ -411,7 +414,8 @@
         import { getFirestore, initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- PWA / STANDALONE APP SETUP (Dynamic Manifest) ---
-        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#22c55e" rx="112"/><path d="M64 144a48 48 0 0 1 48-48h288a48 48 0 0 1 48 48v224a48 48 0 0 1-48 48H112a48 48 0 0 1-48-48V144zm48 16a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h288a16 16 0 0 0 16-16V176a16 16 0 0 0-16-16H112zm48 48h192v32H160v-32zm0 64h192v32H160v-32z" fill="#fff"/></svg>`;
+        // Changed SVG icon to a Wallet to match the in-app logo
+        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#f0fdf4" rx="112"/><path fill="#22c55e" d="M128 96C92.7 96 64 124.7 64 160l0 320c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L144 192c-8.8 0-16-7.2-16-16s7.2-16 16-16l368 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L128 96zM480 336a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/></svg>`;
         const base64Icon = "data:image/svg+xml;base64," + btoa(svgIcon);
         
         const manifest = {
@@ -578,11 +582,16 @@
             const pass = passInput.value;
             toggleBtnLoading('login-btn-text', 'login-spinner', true);
             try {
-                await signInWithEmailAndPassword(auth, email, pass);
+                const userCredential = await signInWithEmailAndPassword(auth, email, pass);
                 
-                // Clear inputs on success
+                // Clear inputs on success and remove focus to help prevent aggressive auto-fill
                 emailInput.value = '';
                 passInput.value = '';
+                emailInput.blur();
+                passInput.blur();
+                
+                // Clear the form completely
+                document.getElementById('form-login').reset();
             } catch (err) {
                 showAuthMessage("Invalid email or password. Please try again.", false);
                 toggleBtnLoading('login-btn-text', 'login-spinner', false);
@@ -622,19 +631,22 @@
             const email = emailInput.value;
             toggleBtnLoading('reset-btn-text', 'reset-spinner', true);
             try {
-                // Check if account exists first
-                const methods = await fetchSignInMethodsForEmail(auth, email);
-                if (methods.length === 0) {
-                    showAuthMessage("No account found with this email address.", false);
-                    toggleBtnLoading('reset-btn-text', 'reset-spinner', false);
-                    return;
-                }
-
+                // Due to Firebase Email Enumeration Protection being on by default in new projects,
+                // fetchSignInMethodsForEmail will no longer work to check if an account exists 
+                // before sending the reset email. It's safer to just send it.
+                // If the email doesn't exist, Firebase silently ignores the request to prevent
+                // attackers from discovering registered emails.
+                
                 await sendPasswordResetEmail(auth, email);
+                
+                // Clear the input
                 emailInput.value = '';
-                showAuthMessage("Sent! Please check your email for the password reset link.", true);
+                document.getElementById('form-reset').reset();
+                
+                showAuthMessage("If an account exists with that email, a password reset link has been sent.", true);
             } catch (err) {
-                showAuthMessage("Failed to verify account. Please make sure the email is correct.", false);
+                // Handle specific errors if needed, otherwise show a generic message
+                showAuthMessage("Failed to send reset email. Please try again later.", false);
             }
             toggleBtnLoading('reset-btn-text', 'reset-spinner', false);
         };
@@ -672,30 +684,53 @@
             if (unsubDebts) unsubDebts();
             if (unsubSettings) unsubSettings();
 
-            const debtsColl = collection(db, 'artifacts', appId, 'users', uid, 'debts');
-            const settingsDocRef = doc(db, 'artifacts', appId, 'users', uid, 'settings', 'config');
+            try {
+                const debtsColl = collection(db, 'artifacts', appId, 'users', uid, 'debts');
+                const settingsDocRef = doc(db, 'artifacts', appId, 'users', uid, 'settings', 'config');
 
-            unsubDebts = onSnapshot(debtsColl, (snapshot) => {
-                state.debts = snapshot.docs.map(doc => doc.data());
-                renderApp();
-                hideLoader();
-            }, (error) => {
-                console.error("Error fetching debts:", error);
-                hideLoader();
-            });
+                unsubDebts = onSnapshot(debtsColl, (snapshot) => {
+                    try {
+                        state.debts = snapshot.docs.map(doc => doc.data());
+                        renderApp();
+                    } catch (renderError) {
+                        console.error("Error rendering after fetching debts:", renderError);
+                        alert("An error occurred while loading your debts. Please refresh the page.");
+                    }
+                    hideLoader();
+                }, (error) => {
+                    console.error("Error fetching debts:", error);
+                    hideLoader();
+                });
 
-            unsubSettings = onSnapshot(settingsDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    state.settings = docSnap.data();
-                } else {
-                    setDoc(settingsDocRef, { paydays: [15, 30] }).catch(()=>{});
-                }
-                renderApp();
-            }, (error) => console.error("Error fetching settings:", error));
+                unsubSettings = onSnapshot(settingsDocRef, (docSnap) => {
+                    try {
+                        if (docSnap.exists()) {
+                            state.settings = docSnap.data();
+                        } else {
+                            // Only set default if it truly doesn't exist to prevent overwrite loops
+                            setDoc(settingsDocRef, { paydays: [15, 30] }).catch(e => console.warn("Could not set initial settings", e));
+                        }
+                        renderApp();
+                    } catch (renderError) {
+                        console.error("Error rendering settings:", renderError);
+                    }
+                }, (error) => console.error("Error fetching settings:", error));
+            } catch (initError) {
+                console.error("Failed to setup Firestore listeners:", initError);
+                hideLoader();
+                alert("Could not connect to the database. Please check your internet connection.");
+            }
         };
 
+        // We can immediately hide the loader if the auth state check takes too long
+        let authCheckTimeout = setTimeout(() => {
+            hideLoader();
+        }, 1500); // Hide loader after 1.5s as fallback
+
         onAuthStateChanged(auth, async (user) => {
-            // Allow entry to the app directly upon successful login/registration
+            clearTimeout(authCheckTimeout); // Clear the fallback if auth responds fast
+
+            // Only allow them to enter the app if they are verified
             if (user) {
                 currentUser = user;
                 document.getElementById('auth-view').style.display = 'none';
@@ -808,54 +843,61 @@
             const settingsRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'config');
             try {
                 await setDoc(settingsRef, state.settings);
-            } catch(e) { console.warn("Saved offline."); }
+            } catch(e) { 
+                console.warn("Saved offline.", e); 
+            }
         };
 
         const recalculateAllDebtsAndSave = async () => {
             if (!currentUser) return;
-            const batch = writeBatch(db);
             
-            state.debts = state.debts.map(debt => {
-                const assignedPayday = getAssignedPayday(debt.dueDay);
-                let startMonthVal = debt.startMonthVal;
+            try {
+                const batch = writeBatch(db);
                 
-                if (!startMonthVal && debt.payments && debt.payments.length > 0) {
-                    const parts = debt.payments[0].fullDate.split('-');
-                    startMonthVal = `${parts[0]}-${parts[1]}`;
-                }
-
-                const [startYear, startMonthNum] = (startMonthVal || '').split('-').map(Number);
-                const oldPayments = debt.payments || [];
-
-                const payments = Array.from({ length: debt.totalMonths }, (_, i) => {
-                    let targetMonthIndex = (startMonthNum - 1) + i;
-                    let targetYear = startYear + Math.floor(targetMonthIndex / 12);
-                    let actualMonth = targetMonthIndex % 12;
-                    let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                state.debts = state.debts.map(debt => {
+                    const assignedPayday = getAssignedPayday(debt.dueDay);
+                    let startMonthVal = debt.startMonthVal;
                     
-                    let actualPayday = Math.min(assignedPayday, daysInMonth);
-                    let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                    let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                    if (!startMonthVal && debt.payments && debt.payments.length > 0) {
+                        const parts = debt.payments[0].fullDate.split('-');
+                        startMonthVal = `${parts[0]}-${parts[1]}`;
+                    }
 
-                    const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+                    const [startYear, startMonthNum] = (startMonthVal || '').split('-').map(Number);
+                    const oldPayments = debt.payments || [];
 
-                    return {
-                        monthNumber: i + 1,
-                        isPaid: isPaid,
-                        monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                        fullDate: dateString
-                    };
+                    const payments = Array.from({ length: debt.totalMonths }, (_, i) => {
+                        let targetMonthIndex = (startMonthNum - 1) + i;
+                        let targetYear = startYear + Math.floor(targetMonthIndex / 12);
+                        let actualMonth = targetMonthIndex % 12;
+                        let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                        
+                        let actualPayday = Math.min(assignedPayday, daysInMonth);
+                        let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                        let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+
+                        const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+
+                        return {
+                            monthNumber: i + 1,
+                            isPaid: isPaid,
+                            monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            fullDate: dateString
+                        };
+                    });
+
+                    const updatedDebt = { ...debt, assignedPayday, startMonthVal, payments };
+                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debt.id);
+                    batch.set(debtRef, updatedDebt);
+                    
+                    return updatedDebt;
                 });
 
-                const updatedDebt = { ...debt, assignedPayday, startMonthVal, payments };
-                const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debt.id);
-                batch.set(debtRef, updatedDebt);
-                
-                return updatedDebt;
-            });
-
-            renderApp(); 
-            try { await batch.commit(); } catch(e) { console.warn("Saved offline."); }
+                renderApp(); 
+                try { await batch.commit(); } catch(e) { console.warn("Saved offline."); }
+            } catch (err) {
+                console.error("Error recalculating debts:", err);
+            }
         };
 
         window.addPayday = () => {
@@ -887,47 +929,52 @@
                 async () => {
                     if (!currentUser) return;
                     
-                    const borrower = document.getElementById('input-borrower').value.trim();
-                    const name = document.getElementById('input-name').value.trim();
-                    const monthlyAmount = parseFloat(document.getElementById('input-monthly').value);
-                    const totalMonths = parseInt(document.getElementById('input-months').value);
-                    const dueDay = parseInt(document.getElementById('input-dueday').value);
-                    const startMonthVal = document.getElementById('input-startmonth').value;
-                    
-                    const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
-                    const assignedPayday = getAssignedPayday(dueDay);
+                    try {
+                        const borrower = document.getElementById('input-borrower').value.trim();
+                        const name = document.getElementById('input-name').value.trim();
+                        const monthlyAmount = parseFloat(document.getElementById('input-monthly').value);
+                        const totalMonths = parseInt(document.getElementById('input-months').value);
+                        const dueDay = parseInt(document.getElementById('input-dueday').value);
+                        const startMonthVal = document.getElementById('input-startmonth').value;
+                        
+                        const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
+                        const assignedPayday = getAssignedPayday(dueDay);
 
-                    const payments = Array.from({ length: totalMonths }, (_, i) => {
-                        let targetMonthIndex = (startMonthNum - 1) + i;
-                        let targetYear = startYear + Math.floor(targetMonthIndex / 12);
-                        let actualMonth = targetMonthIndex % 12;
+                        const payments = Array.from({ length: totalMonths }, (_, i) => {
+                            let targetMonthIndex = (startMonthNum - 1) + i;
+                            let targetYear = startYear + Math.floor(targetMonthIndex / 12);
+                            let actualMonth = targetMonthIndex % 12;
 
-                        let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
-                        let actualPayday = Math.min(assignedPayday, daysInMonth);
+                            let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                            let actualPayday = Math.min(assignedPayday, daysInMonth);
 
-                        let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                        let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                            let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                            let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
 
-                        return {
-                            monthNumber: i + 1,
-                            isPaid: false,
-                            monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                            fullDate: dateString
+                            return {
+                                monthNumber: i + 1,
+                                isPaid: false,
+                                monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                fullDate: dateString
+                            };
+                        });
+
+                        const newDebt = {
+                            id: Date.now().toString(),
+                            borrower, name, monthlyAmount, totalMonths,
+                            dueDay, assignedPayday, startMonthVal, payments
                         };
-                    });
 
-                    const newDebt = {
-                        id: Date.now().toString(),
-                        borrower, name, monthlyAmount, totalMonths,
-                        dueDay, assignedPayday, startMonthVal, payments
-                    };
+                        state.debts.push(newDebt);
+                        window.toggleModal('add-modal', false);
+                        renderApp();
 
-                    state.debts.push(newDebt);
-                    window.toggleModal('add-modal', false);
-                    renderApp();
-
-                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', newDebt.id);
-                    try { await setDoc(debtRef, newDebt); } catch(err) { console.warn("Saved offline."); }
+                        const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', newDebt.id);
+                        try { await setDoc(debtRef, newDebt); } catch(err) { console.warn("Saved offline.", err); }
+                    } catch (error) {
+                        console.error("Error adding debt:", error);
+                        alert("There was a problem adding the debt. Please check your inputs.");
+                    }
                 }
             );
         };
@@ -963,52 +1010,57 @@
                 async () => {
                     if (!currentUser) return;
 
-                    const id = document.getElementById('edit-id').value;
-                    const debtIndex = state.debts.findIndex(d => d.id === id);
-                    if (debtIndex === -1) return;
+                    try {
+                        const id = document.getElementById('edit-id').value;
+                        const debtIndex = state.debts.findIndex(d => d.id === id);
+                        if (debtIndex === -1) return;
 
-                    const borrower = document.getElementById('edit-borrower').value.trim();
-                    const name = document.getElementById('edit-name').value.trim();
-                    const monthlyAmount = parseFloat(document.getElementById('edit-monthly').value);
-                    const totalMonths = parseInt(document.getElementById('edit-months').value);
-                    const dueDay = parseInt(document.getElementById('edit-dueday').value);
-                    const startMonthVal = document.getElementById('edit-startmonth').value;
-                    
-                    const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
-                    const assignedPayday = getAssignedPayday(dueDay);
-                    const oldPayments = state.debts[debtIndex].payments || [];
+                        const borrower = document.getElementById('edit-borrower').value.trim();
+                        const name = document.getElementById('edit-name').value.trim();
+                        const monthlyAmount = parseFloat(document.getElementById('edit-monthly').value);
+                        const totalMonths = parseInt(document.getElementById('edit-months').value);
+                        const dueDay = parseInt(document.getElementById('edit-dueday').value);
+                        const startMonthVal = document.getElementById('edit-startmonth').value;
+                        
+                        const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
+                        const assignedPayday = getAssignedPayday(dueDay);
+                        const oldPayments = state.debts[debtIndex].payments || [];
 
-                    const payments = Array.from({ length: totalMonths }, (_, i) => {
-                        let targetMonthIndex = (startMonthNum - 1) + i;
-                        let targetYear = startYear + Math.floor(targetMonthIndex / 12);
-                        let actualMonth = targetMonthIndex % 12;
-                        let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
-                        let actualPayday = Math.min(assignedPayday, daysInMonth);
-                        let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                        let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                        const payments = Array.from({ length: totalMonths }, (_, i) => {
+                            let targetMonthIndex = (startMonthNum - 1) + i;
+                            let targetYear = startYear + Math.floor(targetMonthIndex / 12);
+                            let actualMonth = targetMonthIndex % 12;
+                            let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                            let actualPayday = Math.min(assignedPayday, daysInMonth);
+                            let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                            let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
 
-                        const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+                            const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
 
-                        return {
-                            monthNumber: i + 1,
-                            isPaid: isPaid,
-                            monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                            fullDate: dateString
+                            return {
+                                monthNumber: i + 1,
+                                isPaid: isPaid,
+                                monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                fullDate: dateString
+                            };
+                        });
+
+                        const updatedDebt = {
+                            ...state.debts[debtIndex],
+                            borrower, name, monthlyAmount, totalMonths,
+                            dueDay, assignedPayday, startMonthVal, payments
                         };
-                    });
 
-                    const updatedDebt = {
-                        ...state.debts[debtIndex],
-                        borrower, name, monthlyAmount, totalMonths,
-                        dueDay, assignedPayday, startMonthVal, payments
-                    };
+                        state.debts[debtIndex] = updatedDebt;
+                        window.toggleModal('edit-modal', false);
+                        renderApp();
 
-                    state.debts[debtIndex] = updatedDebt;
-                    window.toggleModal('edit-modal', false);
-                    renderApp();
-
-                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', id);
-                    try { await setDoc(debtRef, updatedDebt); } catch(err) { console.warn("Saved offline."); }
+                        const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', id);
+                        try { await setDoc(debtRef, updatedDebt); } catch(err) { console.warn("Saved offline.", err); }
+                    } catch (error) {
+                        console.error("Error editing debt:", error);
+                        alert("There was a problem updating the debt. Please try again.");
+                    }
                 }
             );
         };
@@ -1037,11 +1089,15 @@
             window.showConfirm(title, msg, type, async () => {
                 if (!currentUser) return;
                 
-                debt.payments[monthIndex].isPaid = !isCurrentlyPaid;
-                renderApp();
+                try {
+                    debt.payments[monthIndex].isPaid = !isCurrentlyPaid;
+                    renderApp();
 
-                const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debtId);
-                try { await setDoc(debtRef, debt); } catch(e) { console.warn("Saved offline."); }
+                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debtId);
+                    try { await setDoc(debtRef, debt); } catch(e) { console.warn("Saved offline.", e); }
+                } catch (error) {
+                    console.error("Error toggling payment:", error);
+                }
             });
         };
 
@@ -1053,86 +1109,104 @@
                 async () => {
                     if (!currentUser) return;
                     
-                    state.debts = state.debts.filter(d => d.id !== debtId);
-                    renderApp();
+                    try {
+                        state.debts = state.debts.filter(d => d.id !== debtId);
+                        renderApp();
 
-                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debtId);
-                    try { await deleteDoc(debtRef); } catch(e) { console.warn("Deleted offline."); }
+                        const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debtId);
+                        try { await deleteDoc(debtRef); } catch(e) { console.warn("Deleted offline.", e); }
+                    } catch (error) {
+                        console.error("Error deleting debt:", error);
+                    }
                 }
             );
         };
 
         // --- RENDERING ---
         const renderApp = () => {
-            updateSuggestions(); 
+            try {
+                updateSuggestions(); 
 
-            // Render Settings
-            const pdList = document.getElementById('paydays-list');
-            pdList.innerHTML = state.settings.paydays.sort((a,b)=>a-b).map(pd => `
-                <span class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium">
-                    ${getOrdinalNum(pd)}
-                    <button onclick="window.removePayday(${pd})" class="text-slate-400 hover:text-red-500 p-0.5"><i class="fa-solid fa-times"></i></button>
-                </span>
-            `).join('');
+                // Render Settings
+                const pdList = document.getElementById('paydays-list');
+                if (pdList) {
+                    pdList.innerHTML = state.settings.paydays.sort((a,b)=>a-b).map(pd => `
+                        <span class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium">
+                            ${getOrdinalNum(pd)}
+                            <button onclick="window.removePayday(${pd})" class="text-slate-400 hover:text-red-500 p-0.5"><i class="fa-solid fa-times"></i></button>
+                        </span>
+                    `).join('');
+                }
 
-            // Empty State
-            const emptyState = document.getElementById('empty-state');
-            if (state.debts.length === 0) {
-                emptyState.classList.remove('hidden');
-                document.getElementById('dash-due-container').innerHTML = '';
-                document.getElementById('dash-upcoming-container').innerHTML = '';
-                document.getElementById('log-container').innerHTML = '';
-                
-                document.getElementById('stat-count').innerText = '0';
-                document.getElementById('stat-unpaid').innerText = formatMoney(0);
-                document.getElementById('stat-paid').innerText = formatMoney(0);
-                
-                document.getElementById('borrower-filter-container').classList.add('hidden');
-                return;
-            } else {
-                emptyState.classList.add('hidden');
-            }
-
-            // Render Borrower Filter
-            const filterContainer = document.getElementById('borrower-filter-container');
-            const filterList = document.getElementById('borrower-filter-list');
-            
-            if (state.currentTab === 'settings') {
-                filterContainer.classList.add('hidden');
-            } else {
-                filterContainer.classList.remove('hidden');
-                const uniqueBorrowers = ['All', ...new Set(state.debts.map(d => d.borrower || 'Unspecified'))];
-                filterList.innerHTML = uniqueBorrowers.map(b => {
-                    const isActive = state.filterBorrower === b;
-                    const activeClass = "bg-indigo-600 text-white border-indigo-600 shadow-sm";
-                    const inactiveClass = "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm";
+                // Empty State
+                const emptyState = document.getElementById('empty-state');
+                if (state.debts.length === 0) {
+                    if(emptyState) emptyState.classList.remove('hidden');
+                    const dueContainer = document.getElementById('dash-due-container');
+                    const upcomingContainer = document.getElementById('dash-upcoming-container');
+                    const logContainer = document.getElementById('log-container');
+                    const filterContainer = document.getElementById('borrower-filter-container');
                     
-                    return `
-                        <button onclick="window.setFilter('${b}')" class="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors flex items-center gap-1.5 ${isActive ? activeClass : inactiveClass}">
-                            ${b === 'All' ? '<i class="fa-solid fa-users"></i> All Borrowers' : '<i class="fa-solid fa-user"></i> ' + b}
-                        </button>
-                    `;
-                }).join('');
+                    if(dueContainer) dueContainer.innerHTML = '';
+                    if(upcomingContainer) upcomingContainer.innerHTML = '';
+                    if(logContainer) logContainer.innerHTML = '';
+                    
+                    document.getElementById('stat-count').innerText = '0';
+                    document.getElementById('stat-unpaid').innerText = formatMoney(0);
+                    document.getElementById('stat-paid').innerText = formatMoney(0);
+                    
+                    if(filterContainer) filterContainer.classList.add('hidden');
+                    return;
+                } else {
+                    if(emptyState) emptyState.classList.add('hidden');
+                }
+
+                // Render Borrower Filter
+                const filterContainer = document.getElementById('borrower-filter-container');
+                const filterList = document.getElementById('borrower-filter-list');
+                
+                if (filterContainer && filterList) {
+                    if (state.currentTab === 'settings') {
+                        filterContainer.classList.add('hidden');
+                    } else {
+                        filterContainer.classList.remove('hidden');
+                        const uniqueBorrowers = ['All', ...new Set(state.debts.map(d => d.borrower || 'Unspecified'))];
+                        filterList.innerHTML = uniqueBorrowers.map(b => {
+                            const isActive = state.filterBorrower === b;
+                            const activeClass = "bg-indigo-600 text-white border-indigo-600 shadow-sm";
+                            const inactiveClass = "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm";
+                            
+                            return `
+                                <button onclick="window.setFilter('${b}')" class="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors flex items-center gap-1.5 ${isActive ? activeClass : inactiveClass}">
+                                    ${b === 'All' ? '<i class="fa-solid fa-users"></i> All Borrowers' : '<i class="fa-solid fa-user"></i> ' + b}
+                                </button>
+                            `;
+                        }).join('');
+                    }
+                }
+
+                let filteredForStats = state.filterBorrower !== 'All' 
+                    ? state.debts.filter(d => (d.borrower || 'Unspecified') === state.filterBorrower)
+                    : state.debts;
+
+                let totalUnpaid = 0;
+                let totalPaid = 0;
+                filteredForStats.forEach(debt => {
+                    const paidCount = debt.payments.filter(p => p.isPaid).length;
+                    totalPaid += paidCount * debt.monthlyAmount;
+                    totalUnpaid += (debt.totalMonths - paidCount) * debt.monthlyAmount;
+                });
+
+                document.getElementById('stat-count').innerText = filteredForStats.length;
+                document.getElementById('stat-unpaid').innerText = formatMoney(totalUnpaid);
+                document.getElementById('stat-paid').innerText = formatMoney(totalPaid);
+
+                if (state.currentTab === 'dashboard') renderDashboard();
+                if (state.currentTab === 'log') renderLog();
+            } catch (error) {
+                console.error("CRITICAL ERROR IN renderApp:", error);
+                // We don't want the UI to completely break if one section fails to render
             }
-
-            let filteredForStats = state.filterBorrower !== 'All' 
-                ? state.debts.filter(d => (d.borrower || 'Unspecified') === state.filterBorrower)
-                : state.debts;
-
-            let totalUnpaid = 0;
-            let totalPaid = 0;
-            filteredForStats.forEach(debt => {
-                const paidCount = debt.payments.filter(p => p.isPaid).length;
-                totalPaid += paidCount * debt.monthlyAmount;
-                totalUnpaid += (debt.totalMonths - paidCount) * debt.monthlyAmount;
-            });
-
-            document.getElementById('stat-count').innerText = filteredForStats.length;
-            document.getElementById('stat-unpaid').innerText = formatMoney(totalUnpaid);
-            document.getElementById('stat-paid').innerText = formatMoney(totalPaid);
-
-            if (state.currentTab === 'dashboard') renderDashboard();
-            if (state.currentTab === 'log') renderLog();
         };
 
         const renderDashboard = () => {
