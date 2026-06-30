@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monthly Debt Tracker</title>
+    
+    <!-- PWA / Standalone App Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Debt Tracker">
+    <meta name="theme-color" content="#22c55e">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for horizontal month list */
+        .months-container::-webkit-scrollbar { height: 6px; }
+        .months-container::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .months-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .months-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .tab-active { border-bottom: 2px solid #22c55e; color: #16a34a; font-weight: 600; }
+        
+        /* Hide app view initially */
+        #app-view { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-12 relative selection:bg-brand-100 selection:text-brand-900">
+
+    <!-- Global Loader -->
+    <div id="global-loader" class="fixed inset-0 bg-slate-50 z-[100] flex flex-col items-center justify-center transition-opacity duration-300">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl text-brand-500 mb-4"></i>
+        <p class="text-slate-500 font-medium animate-pulse">Loading...</p>
+    </div>
+
+    <!-- AUTHENTICATION VIEW -->
+    <div id="auth-view" class="hidden min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-6 sm:p-8">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-brand-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa-solid fa-wallet text-3xl text-brand-500"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">Debt Tracker</h1>
+                <p class="text-sm text-slate-500 mt-1">Manage your debts easily.</p>
+            </div>
+
+            <div id="auth-error" class="hidden mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs sm:text-sm rounded-lg text-center font-medium"></div>
+
+            <!-- Login Form -->
+            <form id="form-login" onsubmit="window.handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                    <div class="relative">
+                        <i class="fa-regular fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="email" id="login-email" required class="w-full pl-10 pr-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="password" id="login-password" required class="w-full pl-10 pr-10 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                        <button type="button" onclick="window.togglePassword('login-password', 'login-eye')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                            <i id="login-eye" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="window.switchAuth('reset')" class="text-xs font-medium text-brand-600 hover:text-brand-700">Forgot Password?</button>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg flex justify-center items-center gap-2">
+                    <span id="login-btn-text">Login</span>
+                    <i id="login-spinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                </button>
+                <p class="text-center text-xs sm:text-sm text-slate-500 mt-4">
+                    Don't have an account? <button type="button" onclick="window.switchAuth('register')" class="font-bold text-brand-600 hover:text-brand-700">Create Account</button>
+                </p>
+            </form>
+
+            <!-- Register Form -->
+            <form id="form-register" onsubmit="window.handleRegister(event)" class="hidden space-y-4">
+                <div>
+                    <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                    <div class="relative">
+                        <i class="fa-regular fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="email" id="reg-email" required class="w-full pl-10 pr-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="password" id="reg-password" required minlength="6" class="w-full pl-10 pr-10 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                        <button type="button" onclick="window.togglePassword('reg-password', 'reg-eye')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                            <i id="reg-eye" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="w-full mt-2 py-2.5 bg-slate-800 text-white hover:bg-slate-900 rounded-lg text-sm font-bold transition-all shadow-md flex justify-center items-center gap-2">
+                    <span id="reg-btn-text">Create Account</span>
+                    <i id="reg-spinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                </button>
+                <p class="text-center text-xs sm:text-sm text-slate-500 mt-4">
+                    Already have an account? <button type="button" onclick="window.switchAuth('login')" class="font-bold text-brand-600 hover:text-brand-700">Login instead</button>
+                </p>
+            </form>
+
+            <!-- Forgot Password Form -->
+            <form id="form-reset" onsubmit="window.handleReset(event)" class="hidden space-y-4">
+                <p class="text-sm text-slate-600 mb-2">Provide your email address and we will send you a link to reset your password.</p>
+                <div>
+                    <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                    <div class="relative">
+                        <i class="fa-regular fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="email" id="reset-email" required class="w-full pl-10 pr-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                    </div>
+                </div>
+                <button type="submit" class="w-full mt-2 py-2.5 bg-orange-500 text-white hover:bg-orange-600 rounded-lg text-sm font-bold transition-all shadow-md flex justify-center items-center gap-2">
+                    <span id="reset-btn-text">Reset Password</span>
+                    <i id="reset-spinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                </button>
+                <p class="text-center text-xs sm:text-sm text-slate-500 mt-4">
+                    Back to <button type="button" onclick="window.switchAuth('login')" class="font-bold text-brand-600 hover:text-brand-700">Login</button>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP VIEW -->
+    <div id="app-view">
+        <!-- Navbar -->
+        <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 text-lg sm:text-xl font-bold text-slate-800">
+                        <i class="fa-solid fa-wallet text-brand-500"></i>
+                        <span class="hidden sm:inline">Debt Tracker</span>
+                        <span class="sm:hidden">Tracker</span>
+                    </div>
+                    <!-- Network Status Indicator -->
+                    <div id="network-status" class="flex items-center gap-1.5 text-[10px] sm:text-xs font-medium text-brand-600 bg-brand-50 px-2 sm:px-3 py-1 rounded-full border border-brand-100 transition-colors">
+                        <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-brand-500 animate-pulse"></span> Online
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <button onclick="window.showAddModal()" class="bg-brand-500 hover:bg-brand-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i>
+                        <span class="hidden sm:inline">Add New Debt</span>
+                        <span class="sm:hidden">Add</span>
+                    </button>
+                    <button onclick="window.handleLogout()" class="text-slate-500 hover:text-red-500 px-2 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors" title="Logout">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-1 flex gap-4 sm:gap-6 text-xs sm:text-sm text-slate-500 font-medium overflow-x-auto no-scrollbar">
+                <button onclick="window.switchTab('dashboard')" id="tab-btn-dashboard" class="pb-3 px-1 tab-active whitespace-nowrap transition-colors hover:text-slate-800 flex items-center gap-1.5">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </button>
+                <button onclick="window.switchTab('log')" id="tab-btn-log" class="pb-3 px-1 whitespace-nowrap transition-colors hover:text-slate-800 flex items-center gap-1.5">
+                    <i class="fa-solid fa-folder-open"></i> Record Log
+                </button>
+                <button onclick="window.switchTab('settings')" id="tab-btn-settings" class="pb-3 px-1 whitespace-nowrap transition-colors hover:text-slate-800 flex items-center gap-1.5">
+                    <i class="fa-solid fa-gear"></i> Settings
+                </button>
+            </div>
+        </nav>
+
+        <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            
+            <!-- BORROWER FILTER ROW -->
+            <div id="borrower-filter-container" class="hidden mb-6">
+                <div class="flex items-center gap-2 mb-3 text-xs sm:text-sm font-semibold text-slate-500">
+                    <i class="fa-solid fa-filter"></i> Filter by Borrower:
+                </div>
+                <div id="borrower-filter-list" class="flex flex-wrap gap-2">
+                    <!-- Filter chips will load here -->
+                </div>
+            </div>
+            
+            <!-- DASHBOARD VIEW -->
+            <div id="view-dashboard" class="space-y-6 sm:space-y-8">
+                <!-- Stats -->
+                <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+                        <div class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 mb-2">
+                            <i class="fa-solid fa-file-invoice-dollar text-lg"></i>
+                        </div>
+                        <h3 class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Active</h3>
+                        <p id="stat-count" class="text-xl sm:text-2xl font-bold text-slate-800 mt-1">0</p>
+                    </div>
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+                        <div class="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-2">
+                            <i class="fa-solid fa-chart-pie text-lg"></i>
+                        </div>
+                        <h3 class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Remaining</h3>
+                        <p id="stat-unpaid" class="text-xl sm:text-2xl font-bold text-red-500 mt-1">₱0.00</p>
+                    </div>
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+                        <div class="w-10 h-10 bg-brand-50 rounded-full flex items-center justify-center text-brand-500 mb-2">
+                            <i class="fa-solid fa-check-circle text-lg"></i>
+                        </div>
+                        <h3 class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Paid</h3>
+                        <p id="stat-paid" class="text-xl sm:text-2xl font-bold text-brand-500 mt-1">₱0.00</p>
+                    </div>
+                </section>
+
+                <!-- Dashboard Lists -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+                    <!-- Due This Month -->
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-circle-exclamation text-red-500"></i> Due / Need to Pay
+                        </h2>
+                        <div id="dash-due-container" class="space-y-4"></div>
+                    </div>
+
+                    <!-- Upcoming -->
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i class="fa-regular fa-calendar text-brand-500"></i> Upcoming Payments
+                        </h2>
+                        <div id="dash-upcoming-container" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RECORD LOG VIEW -->
+            <div id="view-log" class="hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-800">All Debt Records</h2>
+                </div>
+                <div id="log-container" class="space-y-4 sm:space-y-6"></div>
+            </div>
+
+            <!-- SETTINGS VIEW -->
+            <div id="view-settings" class="hidden space-y-6 max-w-xl">
+                <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-4">Payment Schedule Settings</h2>
+                
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-sm font-semibold text-slate-800 mb-1">Your Paydays</h3>
+                    <p class="text-[11px] sm:text-xs text-slate-500 mb-4">Set the days of the month when you receive your salary (e.g., 15 and 30). This will automatically group your due dates.</p>
+                    
+                    <div id="paydays-list" class="flex flex-wrap gap-2 mb-4">
+                        <!-- Payday badges will load here -->
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <input type="number" id="input-new-payday" min="1" max="31" placeholder="Day (1-31)" class="w-full sm:w-32 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+                        <button onclick="window.addPayday()" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                            Add Payday
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden text-center py-12 sm:py-16 bg-white rounded-xl border border-dashed border-slate-300 col-span-full">
+                <div class="text-slate-400 mb-4">
+                    <i class="fa-solid fa-folder-open text-4xl sm:text-5xl"></i>
+                </div>
+                <h3 class="text-base sm:text-lg font-medium text-slate-700">No active debts</h3>
+                <p class="text-sm text-slate-500 mt-1">Click the "Add New Debt" button to start tracking.</p>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Datalists for Suggestions -->
+    <datalist id="borrower-list"></datalist>
+    <datalist id="debt-name-list"></datalist>
+
+    <!-- Global Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden transform transition-all border border-slate-100">
+            <div class="p-6 text-center">
+                <div id="confirm-icon-bg" class="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i id="confirm-icon" class="fa-solid fa-triangle-exclamation text-2xl text-orange-500"></i>
+                </div>
+                <h3 id="confirm-title" class="text-lg font-bold text-slate-800 mb-2">Are you sure?</h3>
+                <p id="confirm-message" class="text-sm text-slate-500 mb-6">Please confirm your action.</p>
+                <div class="flex gap-3">
+                    <button onclick="window.closeConfirm(false)" class="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-semibold transition-colors">No / Cancel</button>
+                    <button id="confirm-yes-btn" onclick="window.closeConfirm(true)" class="flex-1 px-4 py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-semibold transition-colors shadow-sm">Yes, Proceed</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Debt Modal -->
+    <div id="add-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="px-5 sm:px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-base sm:text-lg font-bold text-slate-800">Add New Debt</h2>
+                <button type="button" onclick="window.toggleModal('add-modal', false)" class="text-slate-400 hover:text-slate-600 transition-colors p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <form id="add-debt-form" onsubmit="window.handleAddDebt(event)" class="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Borrower Name</label>
+                        <input type="text" id="input-borrower" list="borrower-list" required placeholder="e.g., John Doe, Me" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Debt Name</label>
+                        <input type="text" id="input-name" list="debt-name-list" required placeholder="e.g., PLDT Fiber" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Amount (₱/mo)</label>
+                        <input type="number" id="input-monthly" required min="1" step="0.01" placeholder="2500" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Total Months</label>
+                        <input type="number" id="input-months" required min="1" max="120" placeholder="12" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Due Day</label>
+                        <input type="number" id="input-dueday" required min="1" max="31" placeholder="e.g., 10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none" title="Day of the month the bill is due">
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Start Month</label>
+                        <input type="month" id="input-startmonth" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm">
+                    </div>
+                </div>
+                <div class="pt-4 flex gap-3">
+                    <button type="button" onclick="window.toggleModal('add-modal', false)" class="flex-1 px-4 py-2 sm:py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-medium transition-colors">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-2 sm:py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-medium transition-colors shadow-sm">Save Debt</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Debt Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="px-5 sm:px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-base sm:text-lg font-bold text-slate-800">Edit Debt</h2>
+                <button type="button" onclick="window.toggleModal('edit-modal', false)" class="text-slate-400 hover:text-slate-600 transition-colors p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <form id="edit-debt-form" onsubmit="window.handleEditDebt(event)" class="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                <input type="hidden" id="edit-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Borrower Name</label>
+                        <input type="text" id="edit-borrower" list="borrower-list" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Debt Name</label>
+                        <input type="text" id="edit-name" list="debt-name-list" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Amount (₱/mo)</label>
+                        <input type="number" id="edit-monthly" required min="1" step="0.01" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Total Months</label>
+                        <input type="number" id="edit-months" required min="1" max="120" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Due Day</label>
+                        <input type="number" id="edit-dueday" required min="1" max="31" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Start Month</label>
+                        <input type="month" id="edit-startmonth" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm">
+                    </div>
+                </div>
+                <div class="pt-4 flex gap-3">
+                    <button type="button" onclick="window.toggleModal('edit-modal', false)" class="flex-1 px-4 py-2 sm:py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-medium transition-colors">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-2 sm:py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-medium transition-colors shadow-sm">Update Debt</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase & Logic Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, sendEmailVerification, fetchSignInMethodsForEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- PWA / STANDALONE APP SETUP (Dynamic Manifest) ---
+        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#22c55e" rx="112"/><path d="M64 144a48 48 0 0 1 48-48h288a48 48 0 0 1 48 48v224a48 48 0 0 1-48 48H112a48 48 0 0 1-48-48V144zm48 16a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h288a16 16 0 0 0 16-16V176a16 16 0 0 0-16-16H112zm48 48h192v32H160v-32zm0 64h192v32H160v-32z" fill="#fff"/></svg>`;
+        const base64Icon = "data:image/svg+xml;base64," + btoa(svgIcon);
+        
+        const manifest = {
+            "name": "Debt Tracker",
+            "short_name": "Tracker",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#f8fafc",
+            "theme_color": "#22c55e",
+            "icons": [{
+                "src": base64Icon,
+                "sizes": "512x512",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = manifestUrl;
+        document.head.appendChild(manifestLink);
+
+        // --- FIREBASE SETUP ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBzbm7068S1qZ84899Wxxw-Xsjqlfts8Bw",
+            authDomain: "debt-tracker-bf1ce.firebaseapp.com",
+            projectId: "debt-tracker-bf1ce",
+            storageBucket: "debt-tracker-bf1ce.firebasestorage.app",
+            messagingSenderId: "466080751928",
+            appId: "1:466080751928:web:feaf724121251ea9c7a1cd",
+            measurementId: "G-Q3YTNB8FXL"
+        };
+        
+        const appId = 'debt-tracker-app'; // You can leave this as is
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        
+        const db = initializeFirestore(app, {
+            localCache: persistentLocalCache()
+        });
+
+        let currentUser = null;
+        let isOnline = navigator.onLine;
+
+        // --- STATE MANAGEMENT ---
+        let state = {
+            debts: [],
+            settings: { paydays: [15, 30] },
+            currentTab: 'dashboard',
+            filterBorrower: 'All'
+        };
+
+        // --- TIMEZONE & FORMAT HELPER (PH STRICT) ---
+        const getPHTDate = () => {
+            // Force the generated string to be in Philippine Time (UTC+8)
+            const phtString = new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"});
+            // Create a local Date object interpreted from the PH Time string representation
+            return new Date(phtString);
+        };
+
+        const formatMoney = (amount) => {
+            // Strict en-PH locale formatting for Philippine Peso
+            return new Intl.NumberFormat('en-PH', {
+                style: 'currency',
+                currency: 'PHP',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        };
+
+        // --- CONFIRMATION MODAL LOGIC ---
+        let confirmCallback = null;
+        window.showConfirm = (title, message, type, callback) => {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-message').innerText = message;
+            
+            const icon = document.getElementById('confirm-icon');
+            const bg = document.getElementById('confirm-icon-bg');
+            const yesBtn = document.getElementById('confirm-yes-btn');
+            
+            if (type === 'danger') {
+                icon.className = "fa-solid fa-trash text-2xl text-red-500";
+                bg.className = "w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4";
+                yesBtn.className = "flex-1 px-4 py-2.5 bg-red-500 text-white hover:bg-red-600 rounded-lg text-sm font-semibold transition-colors shadow-sm";
+            } else if (type === 'success') {
+                icon.className = "fa-solid fa-check text-2xl text-brand-500";
+                bg.className = "w-14 h-14 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4";
+                yesBtn.className = "flex-1 px-4 py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-semibold transition-colors shadow-sm";
+            } else {
+                icon.className = "fa-solid fa-triangle-exclamation text-2xl text-orange-500";
+                bg.className = "w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4";
+                yesBtn.className = "flex-1 px-4 py-2.5 bg-orange-500 text-white hover:bg-orange-600 rounded-lg text-sm font-semibold transition-colors shadow-sm";
+            }
+            
+            confirmCallback = callback;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        };
+
+        window.closeConfirm = (isConfirmed) => {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (isConfirmed && confirmCallback) {
+                confirmCallback();
+            }
+            confirmCallback = null;
+        };
+
+        // --- AUTHENTICATION UI LOGIC ---
+        window.switchAuth = (mode) => {
+            document.getElementById('form-login').classList.add('hidden');
+            document.getElementById('form-register').classList.add('hidden');
+            document.getElementById('form-reset').classList.add('hidden');
+            document.getElementById('auth-error').classList.add('hidden');
+            
+            if (mode === 'login') document.getElementById('form-login').classList.remove('hidden');
+            if (mode === 'register') document.getElementById('form-register').classList.remove('hidden');
+            if (mode === 'reset') document.getElementById('form-reset').classList.remove('hidden');
+        };
+
+        window.togglePassword = (inputId, iconId) => {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        };
+
+        const showAuthMessage = (msg, isSuccess = false) => {
+            const errDiv = document.getElementById('auth-error');
+            errDiv.innerText = msg;
+            errDiv.classList.remove('hidden');
+            if (isSuccess) {
+                errDiv.className = "mb-4 p-3 bg-brand-50 border border-brand-200 text-brand-600 text-xs sm:text-sm rounded-lg text-center font-medium";
+            } else {
+                errDiv.className = "mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs sm:text-sm rounded-lg text-center font-medium";
+            }
+        };
+
+        const toggleBtnLoading = (btnTextId, spinnerId, isLoading) => {
+            const btnText = document.getElementById(btnTextId);
+            const spinner = document.getElementById(spinnerId);
+            if (isLoading) {
+                btnText.classList.add('hidden');
+                spinner.classList.remove('hidden');
+            } else {
+                btnText.classList.remove('hidden');
+                spinner.classList.add('hidden');
+            }
+        };
+
+        // Firebase Auth Methods
+        window.handleLogin = async (e) => {
+            e.preventDefault();
+            const emailInput = document.getElementById('login-email');
+            const passInput = document.getElementById('login-password');
+            const email = emailInput.value;
+            const pass = passInput.value;
+            toggleBtnLoading('login-btn-text', 'login-spinner', true);
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+                
+                // Clear inputs on success
+                emailInput.value = '';
+                passInput.value = '';
+            } catch (err) {
+                showAuthMessage("Invalid email or password. Please try again.", false);
+                toggleBtnLoading('login-btn-text', 'login-spinner', false);
+            }
+        };
+
+        window.handleRegister = async (e) => {
+            e.preventDefault();
+            const emailInput = document.getElementById('reg-email');
+            const passInput = document.getElementById('reg-password');
+            const email = emailInput.value;
+            const pass = passInput.value;
+            toggleBtnLoading('reg-btn-text', 'reg-spinner', true);
+            try {
+                await createUserWithEmailAndPassword(auth, email, pass);
+                
+                // Firebase automatically signs in the user upon successful creation.
+                // Clear inputs
+                emailInput.value = '';
+                passInput.value = '';
+                
+            } catch (err) {
+                if (err.code === 'auth/email-already-in-use') {
+                    showAuthMessage("Email is already in use. Please login instead.", false);
+                } else if (err.code === 'auth/weak-password') {
+                    showAuthMessage("Password must be at least 6 characters.", false);
+                } else {
+                    showAuthMessage("An error occurred while creating your account.", false);
+                }
+            }
+            toggleBtnLoading('reg-btn-text', 'reg-spinner', false);
+        };
+
+        window.handleReset = async (e) => {
+            e.preventDefault();
+            const emailInput = document.getElementById('reset-email');
+            const email = emailInput.value;
+            toggleBtnLoading('reset-btn-text', 'reset-spinner', true);
+            try {
+                // Check if account exists first
+                const methods = await fetchSignInMethodsForEmail(auth, email);
+                if (methods.length === 0) {
+                    showAuthMessage("No account found with this email address.", false);
+                    toggleBtnLoading('reset-btn-text', 'reset-spinner', false);
+                    return;
+                }
+
+                await sendPasswordResetEmail(auth, email);
+                emailInput.value = '';
+                showAuthMessage("Sent! Please check your email for the password reset link.", true);
+            } catch (err) {
+                showAuthMessage("Failed to verify account. Please make sure the email is correct.", false);
+            }
+            toggleBtnLoading('reset-btn-text', 'reset-spinner', false);
+        };
+
+        window.handleLogout = async () => {
+            window.showConfirm(
+                "Logout?", 
+                "Are you sure you want to logout of your account?", 
+                "warning", 
+                async () => {
+                    await signOut(auth);
+                }
+            );
+        };
+
+        // Network Status Listeners
+        const updateNetworkStatus = () => {
+            isOnline = navigator.onLine;
+            const statusEl = document.getElementById('network-status');
+            if (isOnline) {
+                statusEl.innerHTML = `<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-brand-500 animate-pulse"></span> Online`;
+                statusEl.className = "flex items-center gap-1.5 text-[10px] sm:text-xs font-medium text-brand-600 bg-brand-50 px-2 sm:px-3 py-1 rounded-full border border-brand-100 transition-colors";
+            } else {
+                statusEl.innerHTML = `<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-orange-500"></span> Offline (Syncing paused)`;
+                statusEl.className = "flex items-center gap-1.5 text-[10px] sm:text-xs font-medium text-orange-600 bg-orange-50 px-2 sm:px-3 py-1 rounded-full border border-orange-100 transition-colors";
+            }
+        };
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+        updateNetworkStatus();
+
+        // Firebase Listeners
+        let unsubDebts, unsubSettings;
+        const setupFirestoreListeners = (uid) => {
+            if (unsubDebts) unsubDebts();
+            if (unsubSettings) unsubSettings();
+
+            const debtsColl = collection(db, 'artifacts', appId, 'users', uid, 'debts');
+            const settingsDocRef = doc(db, 'artifacts', appId, 'users', uid, 'settings', 'config');
+
+            unsubDebts = onSnapshot(debtsColl, (snapshot) => {
+                state.debts = snapshot.docs.map(doc => doc.data());
+                renderApp();
+                hideLoader();
+            }, (error) => {
+                console.error("Error fetching debts:", error);
+                hideLoader();
+            });
+
+            unsubSettings = onSnapshot(settingsDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    state.settings = docSnap.data();
+                } else {
+                    setDoc(settingsDocRef, { paydays: [15, 30] }).catch(()=>{});
+                }
+                renderApp();
+            }, (error) => console.error("Error fetching settings:", error));
+        };
+
+        onAuthStateChanged(auth, async (user) => {
+            // Allow entry to the app directly upon successful login/registration
+            if (user) {
+                currentUser = user;
+                document.getElementById('auth-view').style.display = 'none';
+                document.getElementById('app-view').style.display = 'block';
+                setupFirestoreListeners(user.uid);
+                
+                toggleBtnLoading('login-btn-text', 'login-spinner', false);
+                toggleBtnLoading('reg-btn-text', 'reg-spinner', false);
+            } else {
+                currentUser = null;
+                document.getElementById('app-view').style.display = 'none';
+                document.getElementById('auth-view').style.display = 'flex';
+                document.getElementById('auth-view').classList.remove('hidden');
+                
+                state.debts = [];
+                if (unsubDebts) unsubDebts();
+                if (unsubSettings) unsubSettings();
+                
+                hideLoader();
+            }
+        });
+
+        const hideLoader = () => {
+            const loader = document.getElementById('global-loader');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.classList.add('hidden'), 300);
+            }
+        };
+
+        // --- HELPER FUNCTIONS ---
+        const getOrdinalNum = (n) => {
+            let s = ["th", "st", "nd", "rd"], v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        };
+
+        const getAssignedPayday = (dueDay) => {
+            const paydays = [...state.settings.paydays].sort((a, b) => a - b);
+            if (paydays.length === 0) return 1;
+            if (paydays.length === 1) return paydays[0];
+
+            let assigned = paydays[paydays.length - 1]; 
+            for (let i = 0; i < paydays.length; i++) {
+                if (dueDay >= paydays[i]) {
+                    assigned = paydays[i];
+                } else {
+                    break;
+                }
+            }
+            return assigned;
+        };
+
+        const updateSuggestions = () => {
+            const borrowers = [...new Set(state.debts.map(d => d.borrower).filter(Boolean))];
+            const names = [...new Set(state.debts.map(d => d.name).filter(Boolean))];
+            
+            const borrowerList = document.getElementById('borrower-list');
+            const nameList = document.getElementById('debt-name-list');
+            
+            if(borrowerList) borrowerList.innerHTML = borrowers.map(b => `<option value="${b}">`).join('');
+            if(nameList) nameList.innerHTML = names.map(n => `<option value="${n}">`).join('');
+        };
+
+        const now = getPHTDate();
+        document.getElementById('input-startmonth').value = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+
+        window.setFilter = (borrower) => {
+            state.filterBorrower = borrower;
+            renderApp();
+        };
+
+        window.showAddModal = () => {
+            window.toggleModal('add-modal', true);
+        };
+
+        window.toggleModal = (id, show) => {
+            const modal = document.getElementById(id);
+            if (show) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+                if(id === 'add-modal') document.getElementById('add-debt-form').reset();
+                if(id === 'edit-modal') document.getElementById('edit-debt-form').reset();
+            }
+        };
+
+        window.switchTab = (tabName) => {
+            state.currentTab = tabName;
+            
+            ['dashboard', 'log', 'settings'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (t === tabName) {
+                    btn.classList.add('tab-active');
+                    btn.classList.remove('text-slate-500');
+                } else {
+                    btn.classList.remove('tab-active');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+
+            document.getElementById('view-dashboard').classList.toggle('hidden', tabName !== 'dashboard');
+            document.getElementById('view-log').classList.toggle('hidden', tabName !== 'log');
+            document.getElementById('view-settings').classList.toggle('hidden', tabName !== 'settings');
+            
+            renderApp();
+        };
+
+        const updateSettingsToFirebase = async () => {
+            if (!currentUser) return;
+            const settingsRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'config');
+            try {
+                await setDoc(settingsRef, state.settings);
+            } catch(e) { console.warn("Saved offline."); }
+        };
+
+        const recalculateAllDebtsAndSave = async () => {
+            if (!currentUser) return;
+            const batch = writeBatch(db);
+            
+            state.debts = state.debts.map(debt => {
+                const assignedPayday = getAssignedPayday(debt.dueDay);
+                let startMonthVal = debt.startMonthVal;
+                
+                if (!startMonthVal && debt.payments && debt.payments.length > 0) {
+                    const parts = debt.payments[0].fullDate.split('-');
+                    startMonthVal = `${parts[0]}-${parts[1]}`;
+                }
+
+                const [startYear, startMonthNum] = (startMonthVal || '').split('-').map(Number);
+                const oldPayments = debt.payments || [];
+
+                const payments = Array.from({ length: debt.totalMonths }, (_, i) => {
+                    let targetMonthIndex = (startMonthNum - 1) + i;
+                    let targetYear = startYear + Math.floor(targetMonthIndex / 12);
+                    let actualMonth = targetMonthIndex % 12;
+                    let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                    
+                    let actualPayday = Math.min(assignedPayday, daysInMonth);
+                    let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                    let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+
+                    const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+
+                    return {
+                        monthNumber: i + 1,
+                        isPaid: isPaid,
+                        monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                        fullDate: dateString
+                    };
+                });
+
+                const updatedDebt = { ...debt, assignedPayday, startMonthVal, payments };
+                const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debt.id);
+                batch.set(debtRef, updatedDebt);
+                
+                return updatedDebt;
+            });
+
+            renderApp(); 
+            try { await batch.commit(); } catch(e) { console.warn("Saved offline."); }
+        };
+
+        window.addPayday = () => {
+            const input = document.getElementById('input-new-payday');
+            const val = parseInt(input.value);
+            if (val >= 1 && val <= 31) {
+                if (!state.settings.paydays.includes(val)) {
+                    state.settings.paydays.push(val);
+                    updateSettingsToFirebase();
+                    recalculateAllDebtsAndSave();
+                }
+                input.value = '';
+            }
+        };
+
+        window.removePayday = (val) => {
+            state.settings.paydays = state.settings.paydays.filter(p => p !== val);
+            updateSettingsToFirebase();
+            recalculateAllDebtsAndSave();
+        };
+
+        window.handleAddDebt = (e) => {
+            e.preventDefault();
+            
+            window.showConfirm(
+                "Save Debt?", 
+                "Are you sure all details are correct and you want to save this?", 
+                "success", 
+                async () => {
+                    if (!currentUser) return;
+                    
+                    const borrower = document.getElementById('input-borrower').value.trim();
+                    const name = document.getElementById('input-name').value.trim();
+                    const monthlyAmount = parseFloat(document.getElementById('input-monthly').value);
+                    const totalMonths = parseInt(document.getElementById('input-months').value);
+                    const dueDay = parseInt(document.getElementById('input-dueday').value);
+                    const startMonthVal = document.getElementById('input-startmonth').value;
+                    
+                    const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
+                    const assignedPayday = getAssignedPayday(dueDay);
+
+                    const payments = Array.from({ length: totalMonths }, (_, i) => {
+                        let targetMonthIndex = (startMonthNum - 1) + i;
+                        let targetYear = startYear + Math.floor(targetMonthIndex / 12);
+                        let actualMonth = targetMonthIndex % 12;
+
+                        let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                        let actualPayday = Math.min(assignedPayday, daysInMonth);
+
+                        let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                        let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+
+                        return {
+                            monthNumber: i + 1,
+                            isPaid: false,
+                            monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            fullDate: dateString
+                        };
+                    });
+
+                    const newDebt = {
+                        id: Date.now().toString(),
+                        borrower, name, monthlyAmount, totalMonths,
+                        dueDay, assignedPayday, startMonthVal, payments
+                    };
+
+                    state.debts.push(newDebt);
+                    window.toggleModal('add-modal', false);
+                    renderApp();
+
+                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', newDebt.id);
+                    try { await setDoc(debtRef, newDebt); } catch(err) { console.warn("Saved offline."); }
+                }
+            );
+        };
+
+        window.openEditModal = (id) => {
+            const debt = state.debts.find(d => d.id === id);
+            if (!debt) return;
+            
+            document.getElementById('edit-id').value = debt.id;
+            document.getElementById('edit-borrower').value = debt.borrower || '';
+            document.getElementById('edit-name').value = debt.name;
+            document.getElementById('edit-monthly').value = debt.monthlyAmount;
+            document.getElementById('edit-months').value = debt.totalMonths;
+            document.getElementById('edit-dueday').value = debt.dueDay;
+            
+            let startMonth = debt.startMonthVal;
+            if (!startMonth && debt.payments && debt.payments.length > 0) {
+                const parts = debt.payments[0].fullDate.split('-');
+                startMonth = `${parts[0]}-${parts[1]}`;
+            }
+            document.getElementById('edit-startmonth').value = startMonth || '';
+            
+            window.toggleModal('edit-modal', true);
+        };
+
+        window.handleEditDebt = (e) => {
+            e.preventDefault();
+            
+            window.showConfirm(
+                "Update Debt?", 
+                "Do you want to save these changes?", 
+                "success", 
+                async () => {
+                    if (!currentUser) return;
+
+                    const id = document.getElementById('edit-id').value;
+                    const debtIndex = state.debts.findIndex(d => d.id === id);
+                    if (debtIndex === -1) return;
+
+                    const borrower = document.getElementById('edit-borrower').value.trim();
+                    const name = document.getElementById('edit-name').value.trim();
+                    const monthlyAmount = parseFloat(document.getElementById('edit-monthly').value);
+                    const totalMonths = parseInt(document.getElementById('edit-months').value);
+                    const dueDay = parseInt(document.getElementById('edit-dueday').value);
+                    const startMonthVal = document.getElementById('edit-startmonth').value;
+                    
+                    const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
+                    const assignedPayday = getAssignedPayday(dueDay);
+                    const oldPayments = state.debts[debtIndex].payments || [];
+
+                    const payments = Array.from({ length: totalMonths }, (_, i) => {
+                        let targetMonthIndex = (startMonthNum - 1) + i;
+                        let targetYear = startYear + Math.floor(targetMonthIndex / 12);
+                        let actualMonth = targetMonthIndex % 12;
+                        let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
+                        let actualPayday = Math.min(assignedPayday, daysInMonth);
+                        let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                        let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+
+                        const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+
+                        return {
+                            monthNumber: i + 1,
+                            isPaid: isPaid,
+                            monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            fullDate: dateString
+                        };
+                    });
+
+                    const updatedDebt = {
+                        ...state.debts[debtIndex],
+                        borrower, name, monthlyAmount, totalMonths,
+                        dueDay, assignedPayday, startMonthVal, payments
+                    };
+
+                    state.debts[debtIndex] = updatedDebt;
+                    window.toggleModal('edit-modal', false);
+                    renderApp();
+
+                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', id);
+                    try { await setDoc(debtRef, updatedDebt); } catch(err) { console.warn("Saved offline."); }
+                }
+            );
+        };
+
+        window.toggleTimeline = (id) => {
+            const el = document.getElementById(`timeline-${id}`);
+            const icon = document.getElementById(`chevron-${id}`);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                el.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        };
+
+        window.togglePayment = (debtId, monthIndex) => {
+            const debt = state.debts.find(d => d.id === debtId);
+            if (!debt) return;
+            
+            const isCurrentlyPaid = debt.payments[monthIndex].isPaid;
+            const title = isCurrentlyPaid ? "Remove Payment?" : "Mark as Paid?";
+            const msg = isCurrentlyPaid ? "Are you sure you want to mark this as unpaid?" : "Are you sure this is already paid?";
+            const type = isCurrentlyPaid ? "warning" : "success";
+
+            window.showConfirm(title, msg, type, async () => {
+                if (!currentUser) return;
+                
+                debt.payments[monthIndex].isPaid = !isCurrentlyPaid;
+                renderApp();
+
+                const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debtId);
+                try { await setDoc(debtRef, debt); } catch(e) { console.warn("Saved offline."); }
+            });
+        };
+
+        window.deleteDebt = (debtId) => {
+            window.showConfirm(
+                "Delete Debt?", 
+                "Are you sure you want to delete this record? This cannot be undone.", 
+                "danger", 
+                async () => {
+                    if (!currentUser) return;
+                    
+                    state.debts = state.debts.filter(d => d.id !== debtId);
+                    renderApp();
+
+                    const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debtId);
+                    try { await deleteDoc(debtRef); } catch(e) { console.warn("Deleted offline."); }
+                }
+            );
+        };
+
+        // --- RENDERING ---
+        const renderApp = () => {
+            updateSuggestions(); 
+
+            // Render Settings
+            const pdList = document.getElementById('paydays-list');
+            pdList.innerHTML = state.settings.paydays.sort((a,b)=>a-b).map(pd => `
+                <span class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium">
+                    ${getOrdinalNum(pd)}
+                    <button onclick="window.removePayday(${pd})" class="text-slate-400 hover:text-red-500 p-0.5"><i class="fa-solid fa-times"></i></button>
+                </span>
+            `).join('');
+
+            // Empty State
+            const emptyState = document.getElementById('empty-state');
+            if (state.debts.length === 0) {
+                emptyState.classList.remove('hidden');
+                document.getElementById('dash-due-container').innerHTML = '';
+                document.getElementById('dash-upcoming-container').innerHTML = '';
+                document.getElementById('log-container').innerHTML = '';
+                
+                document.getElementById('stat-count').innerText = '0';
+                document.getElementById('stat-unpaid').innerText = formatMoney(0);
+                document.getElementById('stat-paid').innerText = formatMoney(0);
+                
+                document.getElementById('borrower-filter-container').classList.add('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            // Render Borrower Filter
+            const filterContainer = document.getElementById('borrower-filter-container');
+            const filterList = document.getElementById('borrower-filter-list');
+            
+            if (state.currentTab === 'settings') {
+                filterContainer.classList.add('hidden');
+            } else {
+                filterContainer.classList.remove('hidden');
+                const uniqueBorrowers = ['All', ...new Set(state.debts.map(d => d.borrower || 'Unspecified'))];
+                filterList.innerHTML = uniqueBorrowers.map(b => {
+                    const isActive = state.filterBorrower === b;
+                    const activeClass = "bg-indigo-600 text-white border-indigo-600 shadow-sm";
+                    const inactiveClass = "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm";
+                    
+                    return `
+                        <button onclick="window.setFilter('${b}')" class="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors flex items-center gap-1.5 ${isActive ? activeClass : inactiveClass}">
+                            ${b === 'All' ? '<i class="fa-solid fa-users"></i> All Borrowers' : '<i class="fa-solid fa-user"></i> ' + b}
+                        </button>
+                    `;
+                }).join('');
+            }
+
+            let filteredForStats = state.filterBorrower !== 'All' 
+                ? state.debts.filter(d => (d.borrower || 'Unspecified') === state.filterBorrower)
+                : state.debts;
+
+            let totalUnpaid = 0;
+            let totalPaid = 0;
+            filteredForStats.forEach(debt => {
+                const paidCount = debt.payments.filter(p => p.isPaid).length;
+                totalPaid += paidCount * debt.monthlyAmount;
+                totalUnpaid += (debt.totalMonths - paidCount) * debt.monthlyAmount;
+            });
+
+            document.getElementById('stat-count').innerText = filteredForStats.length;
+            document.getElementById('stat-unpaid').innerText = formatMoney(totalUnpaid);
+            document.getElementById('stat-paid').innerText = formatMoney(totalPaid);
+
+            if (state.currentTab === 'dashboard') renderDashboard();
+            if (state.currentTab === 'log') renderLog();
+        };
+
+        const renderDashboard = () => {
+            const dueContainer = document.getElementById('dash-due-container');
+            const upcomingContainer = document.getElementById('dash-upcoming-container');
+            
+            const currentYear = getPHTDate().getFullYear();
+            const currentMonth = getPHTDate().getMonth(); 
+
+            let dueItems = {};
+            let upcomingItems = {};
+
+            const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
+            sortedPaydays.forEach(pd => {
+                dueItems[pd] = [];
+                upcomingItems[pd] = [];
+            });
+
+            let filteredDebts = state.filterBorrower !== 'All' 
+                ? state.debts.filter(d => (d.borrower || 'Unspecified') === state.filterBorrower)
+                : state.debts;
+
+            filteredDebts.forEach(debt => {
+                const nextPaymentIndex = debt.payments.findIndex(p => !p.isPaid);
+                if (nextPaymentIndex !== -1) {
+                    const nextPayment = debt.payments[nextPaymentIndex];
+                    const [pYear, pMonth, pDay] = nextPayment.fullDate.split('-').map(Number);
+                    
+                    const item = { debt, payment: nextPayment, index: nextPaymentIndex };
+                    const paydayGroup = debt.assignedPayday;
+
+                    if(!dueItems[paydayGroup]) dueItems[paydayGroup] = [];
+                    if(!upcomingItems[paydayGroup]) upcomingItems[paydayGroup] = [];
+
+                    if (pYear < currentYear || (pYear === currentYear && (pMonth - 1) <= currentMonth)) {
+                        dueItems[paydayGroup].push(item);
+                    } else {
+                        upcomingItems[paydayGroup].push(item);
+                    }
+                }
+            });
+
+            const generateGroupHTML = (itemsDict, emptyMsg) => {
+                let html = '';
+                let hasItems = false;
+
+                Object.keys(itemsDict).sort((a,b)=>a-b).forEach(pd => {
+                    const items = itemsDict[pd];
+                    items.sort((a,b) => new Date(a.payment.fullDate) - new Date(b.payment.fullDate));
+
+                    if (items.length > 0) {
+                        hasItems = true;
+                        html += `
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4">
+                                <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-100 flex justify-between items-center">
+                                    <h4 class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase">Fund from: ${getOrdinalNum(pd)} Payday</h4>
+                                    <span class="text-[10px] sm:text-xs font-medium bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">${items.length} items</span>
+                                </div>
+                                <div class="divide-y divide-slate-100">
+                                    ${items.map(item => `
+                                        <div class="p-3 sm:p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center hover:bg-slate-50 transition-colors gap-3 sm:gap-0">
+                                            <div>
+                                                <h5 class="font-bold text-sm sm:text-base text-slate-800">${item.debt.name}</h5>
+                                                <div class="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-0.5">
+                                                    <span onclick="window.setFilter('${item.debt.borrower || 'Unspecified'}')" class="cursor-pointer hover:bg-indigo-100 transition-colors inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100" title="Click to filter">
+                                                        <i class="fa-solid fa-user"></i> ${item.debt.borrower || 'Unspecified'}
+                                                    </span>
+                                                    <p class="text-[10px] sm:text-xs text-slate-500">Mo ${item.payment.monthNumber} (${item.payment.monthLabel})</p>
+                                                    <p class="text-[10px] sm:text-[11px] text-red-500 font-semibold bg-red-50 px-1.5 py-0.5 rounded border border-red-100"><i class="fa-regular fa-clock"></i> Exact Due: ${getOrdinalNum(item.debt.dueDay)}</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-between sm:justify-end items-center gap-4 w-full sm:w-auto">
+                                                <span class="font-semibold text-sm sm:text-base text-slate-800">${formatMoney(item.debt.monthlyAmount)}</span>
+                                                <button onclick="window.togglePayment('${item.debt.id}', ${item.index})" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-slate-300 text-slate-300 hover:border-brand-500 hover:bg-brand-50 hover:text-brand-500 flex items-center justify-center transition-all shadow-sm" title="Mark as Paid">
+                                                    <i class="fa-solid fa-check text-sm"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (!hasItems) {
+                    html = `<div class="p-4 text-center text-slate-400 text-xs sm:text-sm border border-dashed border-slate-200 rounded-xl bg-white">${emptyMsg}</div>`;
+                }
+                return html;
+            };
+
+            dueContainer.innerHTML = generateGroupHTML(dueItems, "No payments due right now. You're all caught up!");
+            upcomingContainer.innerHTML = generateGroupHTML(upcomingItems, "No upcoming payments.");
+        };
+
+        const renderLog = () => {
+            const container = document.getElementById('log-container');
+            
+            let sortedDebts = [...state.debts];
+            if (state.filterBorrower !== 'All') {
+                sortedDebts = sortedDebts.filter(d => (d.borrower || 'Unspecified') === state.filterBorrower);
+            }
+
+            container.innerHTML = sortedDebts.map(debt => {
+                const paidCount = debt.payments.filter(p => p.isPaid).length;
+                const progress = (debt.totalMonths > 0) ? (paidCount / debt.totalMonths) * 100 : 0;
+                const remainingAmount = (debt.totalMonths - paidCount) * debt.monthlyAmount;
+
+                return `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between items-start gap-4">
+                            <div class="w-full sm:w-auto">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <h3 class="text-lg sm:text-xl font-bold text-slate-800 break-words">${debt.name}</h3>
+                                    <span onclick="window.setFilter('${debt.borrower || 'Unspecified'}')" class="shrink-0 cursor-pointer hover:bg-indigo-100 transition-colors inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100" title="Click to filter">
+                                        <i class="fa-solid fa-user"></i> ${debt.borrower || 'Unspecified'}
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-slate-500">
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-money-bill-wave text-slate-400"></i> ${formatMoney(debt.monthlyAmount)}</span>
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-calendar-alt text-slate-400"></i> ${debt.totalMonths} Mos</span>
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-clock text-slate-400"></i> Due: ${getOrdinalNum(debt.dueDay)}</span>
+                                </div>
+                            </div>
+                            <div class="w-full sm:w-auto flex flex-row sm:flex-col justify-between sm:items-end gap-2 border-t sm:border-t-0 border-slate-100 pt-3 sm:pt-0">
+                                <div class="flex gap-4 sm:gap-3">
+                                    <button onclick="window.openEditModal('${debt.id}')" class="text-slate-400 hover:text-brand-500 transition-colors text-xs sm:text-sm font-medium">
+                                        <i class="fa-solid fa-pen mr-1"></i> Edit
+                                    </button>
+                                    <button onclick="window.deleteDebt('${debt.id}')" class="text-red-400 hover:text-red-600 transition-colors text-xs sm:text-sm font-medium">
+                                        <i class="fa-solid fa-trash-alt mr-1"></i> Delete
+                                    </button>
+                                </div>
+                                <div class="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-3 mt-1">
+                                    <span class="text-[10px] sm:text-xs font-semibold text-slate-500">Left: <span class="text-slate-800 text-sm">${formatMoney(remainingAmount)}</span></span>
+                                    <div class="bg-slate-100 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-sm font-semibold ${paidCount === debt.totalMonths ? 'text-brand-600 bg-brand-50 border border-brand-200' : 'text-slate-600'}">
+                                        ${paidCount} / ${debt.totalMonths} Paid
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-full bg-slate-100 h-1.5">
+                            <div class="bg-brand-500 h-1.5 transition-all duration-500" style="width: ${progress}%"></div>
+                        </div>
+
+                        <!-- Collapsible Header -->
+                        <div class="flex justify-between items-center bg-slate-50/80 px-4 sm:px-5 py-2.5 sm:py-3 cursor-pointer hover:bg-slate-100 transition-colors" onclick="window.toggleTimeline('${debt.id}')">
+                            <h4 class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                Payment Timeline <span class="text-slate-400 font-normal normal-case hidden sm:inline">(Assigned to ${getOrdinalNum(debt.assignedPayday)} Payday)</span>
+                            </h4>
+                            <i id="chevron-${debt.id}" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-300"></i>
+                        </div>
+
+                        <!-- Collapsible Content -->
+                        <div id="timeline-${debt.id}" class="hidden p-4 sm:p-5 bg-slate-50/50 border-t border-slate-100">
+                            <div class="flex gap-2 sm:gap-3 overflow-x-auto pb-4 months-container snap-x">
+                                ${debt.payments.map((payment, index) => {
+                                    const pDate = new Date(payment.fullDate);
+                                    const isPast = pDate < getPHTDate() && !payment.isPaid;
+                                    
+                                    return `
+                                    <div class="snap-start flex-shrink-0 flex flex-col items-center gap-1.5 sm:gap-2 w-14 sm:w-16">
+                                        <span class="text-[10px] sm:text-xs font-bold ${payment.isPaid ? 'text-brand-600' : (isPast ? 'text-orange-500' : 'text-slate-400')} text-center leading-tight">
+                                            ${payment.monthLabel}
+                                        </span>
+                                        <button 
+                                            onclick="window.togglePayment('${debt.id}', ${index})"
+                                            class="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 flex items-center justify-center transition-all ${
+                                                payment.isPaid 
+                                                ? 'bg-brand-500 border-brand-500 text-white shadow-sm' 
+                                                : (isPast ? 'bg-white border-orange-300 text-transparent hover:bg-orange-50' : 'bg-white border-slate-300 text-transparent hover:border-brand-300 hover:bg-brand-50')
+                                            }"
+                                            title="${payment.isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}"
+                                        >
+                                            <i class="fa-solid fa-check text-sm ${payment.isPaid ? 'opacity-100' : 'opacity-0'}"></i>
+                                        </button>
+                                        <span class="text-[9px] sm:text-[10px] font-medium text-slate-400">Mo ${payment.monthNumber}</span>
+                                    </div>
+                                `}).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+    </script>
+</body>
+</html>
