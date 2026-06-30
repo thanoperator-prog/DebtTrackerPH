@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="Debt Tracker">
     <meta name="theme-color" content="#22c55e">
     
-    <!-- Added Favicon to match the Wallet icon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22><path fill=%22%2322c55e%22 d=%22M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L80 128c-8.8 0-16-7.2-16-16s7.2-16 16-16l368 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L64 32zM416 272a32 32 0 1 1 0 64 32 32 0 1 1 0-64z%22/></svg>">
+    <!-- Updated Favicon -->
+    <link rel="icon" href="https://placehold.co/64x64/22c55e/ffffff?text=DT">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -230,20 +230,31 @@
 
                 <!-- Dashboard Lists -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-                    <!-- Due This Month -->
-                    <div>
-                        <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <i class="fa-solid fa-circle-exclamation text-red-500"></i> Due / Need to Pay
-                        </h2>
-                        <div id="dash-due-container" class="space-y-4"></div>
+                    <!-- Left Column: Overdue and Due This Month -->
+                    <div class="space-y-6 sm:space-y-8">
+                        <!-- Overdue Payments -->
+                        <div id="dash-overdue-wrapper" class="hidden">
+                            <h2 class="text-base sm:text-lg font-bold text-red-600 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Overdue Payments
+                            </h2>
+                            <div id="dash-overdue-container" class="space-y-4"></div>
+                        </div>
+
+                        <!-- Due This Month -->
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-circle-exclamation text-orange-500"></i> Due / Need to Pay (This Month)
+                            </h2>
+                            <div id="dash-due-container" class="space-y-4"></div>
+                        </div>
                     </div>
 
-                    <!-- Upcoming -->
+                    <!-- Right Column: Upcoming -->
                     <div>
                         <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <i class="fa-regular fa-calendar text-brand-500"></i> Upcoming Payments
                         </h2>
-                        <div id="dash-upcoming-container" class="space-y-4"></div>
+                        <div id="dash-upcoming-container" class="space-y-6"></div>
                     </div>
                 </div>
             </div>
@@ -350,6 +361,13 @@
                         <input type="month" id="input-startmonth" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm">
                     </div>
                 </div>
+                <!-- Split Payment Toggle -->
+                <div class="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg mt-2">
+                    <input type="checkbox" id="input-split" class="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500 cursor-pointer">
+                    <label for="input-split" class="text-xs sm:text-sm font-medium text-slate-700 cursor-pointer select-none">
+                        Split amount across all paydays in a month
+                    </label>
+                </div>
                 <div class="pt-4 flex gap-3">
                     <button type="button" onclick="window.toggleModal('add-modal', false)" class="flex-1 px-4 py-2 sm:py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-medium transition-colors">Cancel</button>
                     <button type="submit" class="flex-1 px-4 py-2 sm:py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-medium transition-colors shadow-sm">Save Debt</button>
@@ -399,6 +417,13 @@
                         <input type="month" id="edit-startmonth" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm">
                     </div>
                 </div>
+                <!-- Split Payment Toggle -->
+                <div class="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg mt-2">
+                    <input type="checkbox" id="edit-split" class="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500 cursor-pointer">
+                    <label for="edit-split" class="text-xs sm:text-sm font-medium text-slate-700 cursor-pointer select-none">
+                        Split amount across all paydays in a month
+                    </label>
+                </div>
                 <div class="pt-4 flex gap-3">
                     <button type="button" onclick="window.toggleModal('edit-modal', false)" class="flex-1 px-4 py-2 sm:py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-medium transition-colors">Cancel</button>
                     <button type="submit" class="flex-1 px-4 py-2 sm:py-2.5 bg-brand-500 text-white hover:bg-brand-600 rounded-lg text-sm font-medium transition-colors shadow-sm">Update Debt</button>
@@ -414,9 +439,8 @@
         import { getFirestore, initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- PWA / STANDALONE APP SETUP (Dynamic Manifest) ---
-        // Changed SVG icon to a Wallet to match the in-app logo
-        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#f0fdf4" rx="112"/><path fill="#22c55e" d="M128 96C92.7 96 64 124.7 64 160l0 320c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L144 192c-8.8 0-16-7.2-16-16s7.2-16 16-16l368 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L128 96zM480 336a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/></svg>`;
-        const base64Icon = "data:image/svg+xml;base64," + btoa(svgIcon);
+        // Using a placeholder image for the icon as requested to fix the cut-off issue
+        const iconUrl = "https://placehold.co/512x512/22c55e/ffffff?text=DT";
         
         const manifest = {
             "name": "Debt Tracker",
@@ -426,9 +450,9 @@
             "background_color": "#f8fafc",
             "theme_color": "#22c55e",
             "icons": [{
-                "src": base64Icon,
+                "src": iconUrl,
                 "sizes": "512x512",
-                "type": "image/svg+xml",
+                "type": "image/png",
                 "purpose": "any maskable"
             }]
         };
@@ -476,6 +500,10 @@
             const phtString = new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"});
             // Create a local Date object interpreted from the PH Time string representation
             return new Date(phtString);
+        };
+
+        const stripTime = (date) => {
+            return new Date(date.getFullYear(), date.getMonth(), date.getDate());
         };
 
         const formatMoney = (amount) => {
@@ -863,30 +891,64 @@
                         startMonthVal = `${parts[0]}-${parts[1]}`;
                     }
 
+                    const isSplit = debt.isSplit || false;
+
                     const [startYear, startMonthNum] = (startMonthVal || '').split('-').map(Number);
                     const oldPayments = debt.payments || [];
 
-                    const payments = Array.from({ length: debt.totalMonths }, (_, i) => {
+                    const payments = [];
+                    const paydaysCount = state.settings.paydays.length > 0 ? state.settings.paydays.length : 1;
+                    const paymentAmount = isSplit ? (debt.monthlyAmount / paydaysCount) : debt.monthlyAmount;
+
+                    for (let i = 0; i < debt.totalMonths; i++) {
                         let targetMonthIndex = (startMonthNum - 1) + i;
                         let targetYear = startYear + Math.floor(targetMonthIndex / 12);
                         let actualMonth = targetMonthIndex % 12;
                         let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
-                        
-                        let actualPayday = Math.min(assignedPayday, daysInMonth);
-                        let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                        let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
 
-                        const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+                        if (isSplit && state.settings.paydays.length > 0) {
+                            // Generate a payment object for EACH payday in the month
+                            const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
+                            sortedPaydays.forEach((pd, pdIndex) => {
+                                let actualPayday = Math.min(pd, daysInMonth);
+                                let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                                let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                
+                                // Try to map old split payments if they exist, otherwise default to false
+                                // Since structure changed, old data might not map perfectly if switching from non-split to split
+                                const oldPaymentId = `${i}-${pdIndex}`;
+                                const isPaid = oldPayments.find(op => op.splitId === oldPaymentId)?.isPaid || false;
 
-                        return {
-                            monthNumber: i + 1,
-                            isPaid: isPaid,
-                            monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                            fullDate: dateString
-                        };
-                    });
+                                payments.push({
+                                    monthNumber: i + 1,
+                                    splitId: oldPaymentId, // Identifier for mapping
+                                    isPaid: isPaid,
+                                    monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                    fullDate: dateString,
+                                    assignedPayday: pd,
+                                    amount: paymentAmount
+                                });
+                            });
+                        } else {
+                            // Non-split logic (original)
+                            let actualPayday = Math.min(assignedPayday, daysInMonth);
+                            let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                            let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                            const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+                            
+                            payments.push({
+                                monthNumber: i + 1,
+                                splitId: `${i}-0`,
+                                isPaid: isPaid,
+                                monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                fullDate: dateString,
+                                assignedPayday: assignedPayday,
+                                amount: paymentAmount
+                            });
+                        }
+                    }
 
-                    const updatedDebt = { ...debt, assignedPayday, startMonthVal, payments };
+                    const updatedDebt = { ...debt, assignedPayday, startMonthVal, payments, isSplit };
                     const debtRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'debts', debt.id);
                     batch.set(debtRef, updatedDebt);
                     
@@ -936,33 +998,59 @@
                         const totalMonths = parseInt(document.getElementById('input-months').value);
                         const dueDay = parseInt(document.getElementById('input-dueday').value);
                         const startMonthVal = document.getElementById('input-startmonth').value;
+                        const isSplit = document.getElementById('input-split').checked;
                         
                         const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
                         const assignedPayday = getAssignedPayday(dueDay);
 
-                        const payments = Array.from({ length: totalMonths }, (_, i) => {
+                        const payments = [];
+                        const paydaysCount = state.settings.paydays.length > 0 ? state.settings.paydays.length : 1;
+                        const paymentAmount = isSplit ? (monthlyAmount / paydaysCount) : monthlyAmount;
+
+                        for (let i = 0; i < totalMonths; i++) {
                             let targetMonthIndex = (startMonthNum - 1) + i;
                             let targetYear = startYear + Math.floor(targetMonthIndex / 12);
                             let actualMonth = targetMonthIndex % 12;
-
                             let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
-                            let actualPayday = Math.min(assignedPayday, daysInMonth);
 
-                            let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                            let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
-
-                            return {
-                                monthNumber: i + 1,
-                                isPaid: false,
-                                monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                                fullDate: dateString
-                            };
-                        });
+                            if (isSplit && state.settings.paydays.length > 0) {
+                                const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
+                                sortedPaydays.forEach((pd, pdIndex) => {
+                                    let actualPayday = Math.min(pd, daysInMonth);
+                                    let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                                    let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                    
+                                    payments.push({
+                                        monthNumber: i + 1,
+                                        splitId: `${i}-${pdIndex}`,
+                                        isPaid: false,
+                                        monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                        fullDate: dateString,
+                                        assignedPayday: pd,
+                                        amount: paymentAmount
+                                    });
+                                });
+                            } else {
+                                let actualPayday = Math.min(assignedPayday, daysInMonth);
+                                let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                                let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                
+                                payments.push({
+                                    monthNumber: i + 1,
+                                    splitId: `${i}-0`,
+                                    isPaid: false,
+                                    monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                    fullDate: dateString,
+                                    assignedPayday: assignedPayday,
+                                    amount: paymentAmount
+                                });
+                            }
+                        }
 
                         const newDebt = {
                             id: Date.now().toString(),
                             borrower, name, monthlyAmount, totalMonths,
-                            dueDay, assignedPayday, startMonthVal, payments
+                            dueDay, assignedPayday, startMonthVal, payments, isSplit
                         };
 
                         state.debts.push(newDebt);
@@ -989,6 +1077,7 @@
             document.getElementById('edit-monthly').value = debt.monthlyAmount;
             document.getElementById('edit-months').value = debt.totalMonths;
             document.getElementById('edit-dueday').value = debt.dueDay;
+            document.getElementById('edit-split').checked = debt.isSplit || false;
             
             let startMonth = debt.startMonthVal;
             if (!startMonth && debt.payments && debt.payments.length > 0) {
@@ -1021,34 +1110,65 @@
                         const totalMonths = parseInt(document.getElementById('edit-months').value);
                         const dueDay = parseInt(document.getElementById('edit-dueday').value);
                         const startMonthVal = document.getElementById('edit-startmonth').value;
+                        const isSplit = document.getElementById('edit-split').checked;
                         
                         const [startYear, startMonthNum] = startMonthVal.split('-').map(Number);
                         const assignedPayday = getAssignedPayday(dueDay);
                         const oldPayments = state.debts[debtIndex].payments || [];
 
-                        const payments = Array.from({ length: totalMonths }, (_, i) => {
+                        const payments = [];
+                        const paydaysCount = state.settings.paydays.length > 0 ? state.settings.paydays.length : 1;
+                        const paymentAmount = isSplit ? (monthlyAmount / paydaysCount) : monthlyAmount;
+
+                        for (let i = 0; i < totalMonths; i++) {
                             let targetMonthIndex = (startMonthNum - 1) + i;
                             let targetYear = startYear + Math.floor(targetMonthIndex / 12);
                             let actualMonth = targetMonthIndex % 12;
                             let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
-                            let actualPayday = Math.min(assignedPayday, daysInMonth);
-                            let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                            let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
 
-                            const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+                            if (isSplit && state.settings.paydays.length > 0) {
+                                const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
+                                sortedPaydays.forEach((pd, pdIndex) => {
+                                    let actualPayday = Math.min(pd, daysInMonth);
+                                    let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                                    let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                    
+                                    const oldPaymentId = `${i}-${pdIndex}`;
+                                    const isPaid = oldPayments.find(op => op.splitId === oldPaymentId)?.isPaid || false;
 
-                            return {
-                                monthNumber: i + 1,
-                                isPaid: isPaid,
-                                monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                                fullDate: dateString
-                            };
-                        });
+                                    payments.push({
+                                        monthNumber: i + 1,
+                                        splitId: oldPaymentId,
+                                        isPaid: isPaid,
+                                        monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                        fullDate: dateString,
+                                        assignedPayday: pd,
+                                        amount: paymentAmount
+                                    });
+                                });
+                            } else {
+                                let actualPayday = Math.min(assignedPayday, daysInMonth);
+                                let paymentDate = new Date(targetYear, actualMonth, actualPayday);
+                                let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                
+                                const isPaid = (oldPayments[i] && oldPayments[i].isPaid) ? true : false;
+
+                                payments.push({
+                                    monthNumber: i + 1,
+                                    splitId: `${i}-0`,
+                                    isPaid: isPaid,
+                                    monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                                    fullDate: dateString,
+                                    assignedPayday: assignedPayday,
+                                    amount: paymentAmount
+                                });
+                            }
+                        }
 
                         const updatedDebt = {
                             ...state.debts[debtIndex],
                             borrower, name, monthlyAmount, totalMonths,
-                            dueDay, assignedPayday, startMonthVal, payments
+                            dueDay, assignedPayday, startMonthVal, payments, isSplit
                         };
 
                         state.debts[debtIndex] = updatedDebt;
@@ -1192,9 +1312,13 @@
                 let totalUnpaid = 0;
                 let totalPaid = 0;
                 filteredForStats.forEach(debt => {
-                    const paidCount = debt.payments.filter(p => p.isPaid).length;
-                    totalPaid += paidCount * debt.monthlyAmount;
-                    totalUnpaid += (debt.totalMonths - paidCount) * debt.monthlyAmount;
+                    debt.payments.forEach(p => {
+                        if (p.isPaid) {
+                            totalPaid += (p.amount || debt.monthlyAmount);
+                        } else {
+                            totalUnpaid += (p.amount || debt.monthlyAmount);
+                        }
+                    });
                 });
 
                 document.getElementById('stat-count').innerText = filteredForStats.length;
@@ -1212,17 +1336,21 @@
         const renderDashboard = () => {
             const dueContainer = document.getElementById('dash-due-container');
             const upcomingContainer = document.getElementById('dash-upcoming-container');
+            const overdueContainer = document.getElementById('dash-overdue-container');
+            const overdueWrapper = document.getElementById('dash-overdue-wrapper');
             
-            const currentYear = getPHTDate().getFullYear();
-            const currentMonth = getPHTDate().getMonth(); 
+            const currentPHTDate = getPHTDate();
+            const currentYear = currentPHTDate.getFullYear();
+            const currentMonth = currentPHTDate.getMonth(); 
+            const todayStripped = stripTime(currentPHTDate);
 
             let dueItems = {};
-            let upcomingItems = {};
+            let upcomingItemsByMonth = {};
+            let overdueItems = [];
 
             const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
             sortedPaydays.forEach(pd => {
                 dueItems[pd] = [];
-                upcomingItems[pd] = [];
             });
 
             let filteredDebts = state.filterBorrower !== 'All' 
@@ -1230,40 +1358,114 @@
                 : state.debts;
 
             filteredDebts.forEach(debt => {
-                const nextPaymentIndex = debt.payments.findIndex(p => !p.isPaid);
-                if (nextPaymentIndex !== -1) {
-                    const nextPayment = debt.payments[nextPaymentIndex];
-                    const [pYear, pMonth, pDay] = nextPayment.fullDate.split('-').map(Number);
-                    
-                    const item = { debt, payment: nextPayment, index: nextPaymentIndex };
-                    const paydayGroup = debt.assignedPayday;
+                // Iterate through all unpaid payments, not just the first one
+                debt.payments.forEach((payment, index) => {
+                    if (!payment.isPaid) {
+                        const [pYear, pMonth, pDay] = payment.fullDate.split('-').map(Number);
+                        const paymentDateStripped = stripTime(new Date(pYear, pMonth - 1, pDay));
+                        
+                        // Overdue check: For non-split, check against actual exact due date based on payment month
+                        // For split, check against the assigned payday for that specific split payment
+                        let exactDueDate;
+                        if(debt.isSplit) {
+                            // If split, the exact due date is effectively the assigned payday for that chunk
+                            exactDueDate = stripTime(new Date(pYear, pMonth - 1, Math.min(payment.assignedPayday, new Date(pYear, pMonth, 0).getDate())));
+                        } else {
+                            // If not split, exact due date is based on user input `dueDay`
+                            exactDueDate = stripTime(new Date(pYear, pMonth - 1, Math.min(debt.dueDay, new Date(pYear, pMonth, 0).getDate())));
+                        }
+                        
+                        const item = { debt, payment, index };
+                        const paydayGroup = payment.assignedPayday || debt.assignedPayday;
 
-                    if(!dueItems[paydayGroup]) dueItems[paydayGroup] = [];
-                    if(!upcomingItems[paydayGroup]) upcomingItems[paydayGroup] = [];
-
-                    if (pYear < currentYear || (pYear === currentYear && (pMonth - 1) <= currentMonth)) {
-                        dueItems[paydayGroup].push(item);
-                    } else {
-                        upcomingItems[paydayGroup].push(item);
+                        if (exactDueDate < todayStripped) {
+                            // OVERDUE
+                            overdueItems.push(item);
+                        } else if (pYear === currentYear && (pMonth - 1) === currentMonth) {
+                            // DUE THIS MONTH (and not overdue)
+                            if(!dueItems[paydayGroup]) dueItems[paydayGroup] = [];
+                            dueItems[paydayGroup].push(item);
+                        } else if (pYear > currentYear || (pYear === currentYear && (pMonth - 1) > currentMonth)) {
+                            // UPCOMING (Future months)
+                            const monthKey = `${pYear}-${(pMonth).toString().padStart(2, '0')}`;
+                            if(!upcomingItemsByMonth[monthKey]) {
+                                upcomingItemsByMonth[monthKey] = {};
+                                sortedPaydays.forEach(pd => {
+                                    upcomingItemsByMonth[monthKey][pd] = [];
+                                });
+                            }
+                            if(!upcomingItemsByMonth[monthKey][paydayGroup]) upcomingItemsByMonth[monthKey][paydayGroup] = [];
+                            upcomingItemsByMonth[monthKey][paydayGroup].push(item);
+                        }
                     }
-                }
+                });
             });
 
-            const generateGroupHTML = (itemsDict, emptyMsg) => {
+            // --- Render Overdue Items ---
+            if (overdueItems.length > 0) {
+                overdueWrapper.classList.remove('hidden');
+                
+                overdueItems.sort((a, b) => new Date(a.payment.fullDate) - new Date(b.payment.fullDate));
+                let overdueTotal = overdueItems.reduce((sum, item) => sum + (item.payment.amount || item.debt.monthlyAmount), 0);
+                
+                overdueContainer.innerHTML = `
+                    <div class="bg-red-50 rounded-xl shadow-sm border border-red-200 overflow-hidden">
+                        <div class="bg-red-100 px-4 py-2.5 border-b border-red-200 flex justify-between items-center">
+                            <h4 class="text-[10px] sm:text-xs font-bold text-red-700 uppercase">Immediate Attention</h4>
+                            <span class="text-xs sm:text-sm font-bold text-red-700">Total: ${formatMoney(overdueTotal)}</span>
+                        </div>
+                        <div class="divide-y divide-red-100">
+                            ${overdueItems.map(item => `
+                                <div class="p-3 sm:p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center hover:bg-red-50/80 transition-colors gap-3 sm:gap-0">
+                                    <div>
+                                        <h5 class="font-bold text-sm sm:text-base text-red-800">${item.debt.name}</h5>
+                                        <div class="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-0.5">
+                                            <span onclick="window.setFilter('${item.debt.borrower || 'Unspecified'}')" class="cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-medium bg-white/50 text-red-700 border border-red-200" title="Click to filter">
+                                                <i class="fa-solid fa-user"></i> ${item.debt.borrower || 'Unspecified'}
+                                            </span>
+                                            <p class="text-[10px] sm:text-xs text-red-600">Mo ${item.payment.monthNumber} (${item.payment.monthLabel})</p>
+                                            <p class="text-[10px] sm:text-[11px] text-white font-semibold bg-red-500 px-1.5 py-0.5 rounded shadow-sm"><i class="fa-solid fa-triangle-exclamation"></i> Missed Due: ${getOrdinalNum(item.debt.dueDay)}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between sm:justify-end items-center gap-4 w-full sm:w-auto">
+                                        <span class="font-semibold text-sm sm:text-base text-red-700">${formatMoney(item.payment.amount || item.debt.monthlyAmount)}</span>
+                                        <button onclick="window.togglePayment('${item.debt.id}', ${item.index})" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-red-300 text-red-300 hover:border-red-500 hover:bg-red-100 hover:text-red-500 flex items-center justify-center transition-all shadow-sm" title="Mark as Paid">
+                                            <i class="fa-solid fa-check text-sm"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                overdueWrapper.classList.add('hidden');
+                overdueContainer.innerHTML = '';
+            }
+
+            // --- Render Generator for Due/Upcoming ---
+            const generateGroupHTML = (itemsDict, emptyMsg, isNestedByMonth = false) => {
                 let html = '';
                 let hasItems = false;
 
                 Object.keys(itemsDict).sort((a,b)=>a-b).forEach(pd => {
                     const items = itemsDict[pd];
+                    if(!items) return; // Guard clause
                     items.sort((a,b) => new Date(a.payment.fullDate) - new Date(b.payment.fullDate));
 
                     if (items.length > 0) {
                         hasItems = true;
+                        
+                        let groupTotal = items.reduce((sum, item) => sum + (item.payment.amount || item.debt.monthlyAmount), 0);
+
                         html += `
                             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4">
-                                <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-100 flex justify-between items-center">
+                                <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-100 flex justify-between items-center flex-wrap gap-2">
                                     <h4 class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase">Fund from: ${getOrdinalNum(pd)} Payday</h4>
-                                    <span class="text-[10px] sm:text-xs font-medium bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">${items.length} items</span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs sm:text-sm font-bold text-slate-700">Total: ${formatMoney(groupTotal)}</span>
+                                        <span class="hidden sm:inline-block text-[10px] sm:text-xs font-medium bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">${items.length} items</span>
+                                    </div>
                                 </div>
                                 <div class="divide-y divide-slate-100">
                                     ${items.map(item => `
@@ -1279,7 +1481,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex justify-between sm:justify-end items-center gap-4 w-full sm:w-auto">
-                                                <span class="font-semibold text-sm sm:text-base text-slate-800">${formatMoney(item.debt.monthlyAmount)}</span>
+                                                <span class="font-semibold text-sm sm:text-base text-slate-800">${formatMoney(item.payment.amount || item.debt.monthlyAmount)}</span>
                                                 <button onclick="window.togglePayment('${item.debt.id}', ${item.index})" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-slate-300 text-slate-300 hover:border-brand-500 hover:bg-brand-50 hover:text-brand-500 flex items-center justify-center transition-all shadow-sm" title="Mark as Paid">
                                                     <i class="fa-solid fa-check text-sm"></i>
                                                 </button>
@@ -1292,14 +1494,43 @@
                     }
                 });
 
-                if (!hasItems) {
+                if (!hasItems && !isNestedByMonth) {
                     html = `<div class="p-4 text-center text-slate-400 text-xs sm:text-sm border border-dashed border-slate-200 rounded-xl bg-white">${emptyMsg}</div>`;
                 }
-                return html;
+                return { html, hasItems };
             };
 
-            dueContainer.innerHTML = generateGroupHTML(dueItems, "No payments due right now. You're all caught up!");
-            upcomingContainer.innerHTML = generateGroupHTML(upcomingItems, "No upcoming payments.");
+            // Render Due This Month
+            dueContainer.innerHTML = generateGroupHTML(dueItems, "No payments due this month. You're all caught up!").html;
+            
+            // Render Upcoming Grouped by Month
+            let upcomingHTML = '';
+            let hasAnyUpcoming = false;
+
+            const sortedMonths = Object.keys(upcomingItemsByMonth).sort();
+            
+            sortedMonths.forEach(monthKey => {
+                const [year, month] = monthKey.split('-');
+                const dateObj = new Date(year, month - 1, 1);
+                const monthName = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                
+                const monthResult = generateGroupHTML(upcomingItemsByMonth[monthKey], "", true);
+                
+                if(monthResult.hasItems) {
+                    hasAnyUpcoming = true;
+                    upcomingHTML += `
+                        <div class="mb-6 last:mb-0">
+                            <h3 class="text-sm font-bold text-slate-600 mb-3 ml-1 border-l-4 border-brand-500 pl-2">${monthName}</h3>
+                            ${monthResult.html}
+                        </div>
+                    `;
+                }
+            });
+
+            if (!hasAnyUpcoming) {
+                upcomingHTML = `<div class="p-4 text-center text-slate-400 text-xs sm:text-sm border border-dashed border-slate-200 rounded-xl bg-white">No upcoming payments.</div>`;
+            }
+            upcomingContainer.innerHTML = upcomingHTML;
         };
 
         const renderLog = () => {
@@ -1321,12 +1552,13 @@
                             <div class="w-full sm:w-auto">
                                 <div class="flex items-center gap-2 mb-1">
                                     <h3 class="text-lg sm:text-xl font-bold text-slate-800 break-words">${debt.name}</h3>
+                                    ${debt.isSplit ? '<span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-600 border border-teal-200"><i class="fa-solid fa-arrows-split-up-and-left mr-1"></i> SPLIT</span>' : ''}
                                     <span onclick="window.setFilter('${debt.borrower || 'Unspecified'}')" class="shrink-0 cursor-pointer hover:bg-indigo-100 transition-colors inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100" title="Click to filter">
                                         <i class="fa-solid fa-user"></i> ${debt.borrower || 'Unspecified'}
                                     </span>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-slate-500">
-                                    <span class="flex items-center gap-1"><i class="fa-solid fa-money-bill-wave text-slate-400"></i> ${formatMoney(debt.monthlyAmount)}</span>
+                                    <span class="flex items-center gap-1" title="Total Monthly Amount"><i class="fa-solid fa-money-bill-wave text-slate-400"></i> ${formatMoney(debt.monthlyAmount)}</span>
                                     <span class="flex items-center gap-1"><i class="fa-solid fa-calendar-alt text-slate-400"></i> ${debt.totalMonths} Mos</span>
                                     <span class="flex items-center gap-1"><i class="fa-solid fa-clock text-slate-400"></i> Due: ${getOrdinalNum(debt.dueDay)}</span>
                                 </div>
@@ -1342,21 +1574,21 @@
                                 </div>
                                 <div class="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-3 mt-1">
                                     <span class="text-[10px] sm:text-xs font-semibold text-slate-500">Left: <span class="text-slate-800 text-sm">${formatMoney(remainingAmount)}</span></span>
-                                    <div class="bg-slate-100 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-sm font-semibold ${paidCount === debt.totalMonths ? 'text-brand-600 bg-brand-50 border border-brand-200' : 'text-slate-600'}">
-                                        ${paidCount} / ${debt.totalMonths} Paid
+                                    <div class="bg-slate-100 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-sm font-semibold ${paidCount === debt.payments.length ? 'text-brand-600 bg-brand-50 border border-brand-200' : 'text-slate-600'}">
+                                        ${paidCount} / ${debt.payments.length} Payments
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="w-full bg-slate-100 h-1.5">
-                            <div class="bg-brand-500 h-1.5 transition-all duration-500" style="width: ${progress}%"></div>
+                            <div class="bg-brand-500 h-1.5 transition-all duration-500" style="width: ${debt.payments.length > 0 ? (paidCount / debt.payments.length) * 100 : 0}%"></div>
                         </div>
 
                         <!-- Collapsible Header -->
                         <div class="flex justify-between items-center bg-slate-50/80 px-4 sm:px-5 py-2.5 sm:py-3 cursor-pointer hover:bg-slate-100 transition-colors" onclick="window.toggleTimeline('${debt.id}')">
                             <h4 class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                Payment Timeline <span class="text-slate-400 font-normal normal-case hidden sm:inline">(Assigned to ${getOrdinalNum(debt.assignedPayday)} Payday)</span>
+                                Payment Timeline <span class="text-slate-400 font-normal normal-case hidden sm:inline">(${debt.isSplit ? 'Split across all paydays' : 'Assigned to ' + getOrdinalNum(debt.assignedPayday) + ' Payday'})</span>
                             </h4>
                             <i id="chevron-${debt.id}" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-300"></i>
                         </div>
@@ -1366,13 +1598,15 @@
                             <div class="flex gap-2 sm:gap-3 overflow-x-auto pb-4 months-container snap-x">
                                 ${debt.payments.map((payment, index) => {
                                     const pDate = new Date(payment.fullDate);
-                                    const isPast = pDate < getPHTDate() && !payment.isPaid;
+                                    // Check overdue strictly based on the payment's date vs today without time
+                                    const isPast = stripTime(pDate) < stripTime(getPHTDate()) && !payment.isPaid;
                                     
                                     return `
-                                    <div class="snap-start flex-shrink-0 flex flex-col items-center gap-1.5 sm:gap-2 w-14 sm:w-16">
-                                        <span class="text-[10px] sm:text-xs font-bold ${payment.isPaid ? 'text-brand-600' : (isPast ? 'text-orange-500' : 'text-slate-400')} text-center leading-tight">
+                                    <div class="snap-start flex-shrink-0 flex flex-col items-center gap-1.5 sm:gap-2 w-14 sm:w-16 ${debt.isSplit ? 'bg-white p-1 rounded-lg border border-slate-100 shadow-sm' : ''}">
+                                        <span class="text-[10px] sm:text-xs font-bold ${payment.isPaid ? 'text-brand-600' : (isPast ? 'text-orange-500' : 'text-slate-500')} text-center leading-tight">
                                             ${payment.monthLabel}
                                         </span>
+                                        ${debt.isSplit ? `<span class="text-[8px] sm:text-[9px] text-slate-400 font-medium">PD: ${payment.assignedPayday}</span>` : ''}
                                         <button 
                                             onclick="window.togglePayment('${debt.id}', ${index})"
                                             class="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 flex items-center justify-center transition-all ${
@@ -1384,7 +1618,7 @@
                                         >
                                             <i class="fa-solid fa-check text-sm ${payment.isPaid ? 'opacity-100' : 'opacity-0'}"></i>
                                         </button>
-                                        <span class="text-[9px] sm:text-[10px] font-medium text-slate-400">Mo ${payment.monthNumber}</span>
+                                        <span class="text-[9px] sm:text-[10px] font-medium text-slate-400 text-center">Mo ${payment.monthNumber} <br> ${formatMoney(payment.amount || debt.monthlyAmount)}</span>
                                     </div>
                                 `}).join('')}
                             </div>
