@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#22c55e">
     
     <!-- Updated Favicon -->
-    <link rel="icon" href="https://placehold.co/64x64/22c55e/ffffff?text=DT">
+    <link rel="icon" href="icon.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -263,6 +263,14 @@
             <div id="view-log" class="hidden space-y-6">
                 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
                     <h2 class="text-lg sm:text-xl font-bold text-slate-800">All Debt Records</h2>
+                    <div class="flex items-center gap-2 self-start sm:self-auto">
+                        <label class="text-xs sm:text-sm font-medium text-slate-500"><i class="fa-solid fa-sort"></i> Sort:</label>
+                        <select id="sort-debt-select" onchange="window.setSort(this.value)" class="text-xs sm:text-sm border border-slate-300 rounded-lg px-2 py-1.5 outline-none focus:border-brand-500 text-slate-700 bg-white shadow-sm cursor-pointer">
+                            <option value="default">Date Added (Newest)</option>
+                            <option value="name-asc">Name (A-Z)</option>
+                            <option value="name-desc">Name (Z-A)</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="log-container" class="space-y-4 sm:space-y-6"></div>
             </div>
@@ -440,7 +448,7 @@
 
         // --- PWA / STANDALONE APP SETUP (Dynamic Manifest) ---
         // Using a placeholder image for the icon as requested to fix the cut-off issue
-        const iconUrl = "https://placehold.co/512x512/22c55e/ffffff?text=DT";
+        const iconUrl = "icon.png";
         
         const manifest = {
             "name": "Debt Tracker",
@@ -491,7 +499,8 @@
             debts: [],
             settings: { paydays: [15, 30] },
             currentTab: 'dashboard',
-            filterBorrower: 'All'
+            filterBorrower: 'All',
+            sortMode: 'default'
         };
 
         // --- TIMEZONE & FORMAT HELPER (PH STRICT) ---
@@ -830,6 +839,11 @@
             renderApp();
         };
 
+        window.setSort = (val) => {
+            state.sortMode = val;
+            renderApp();
+        };
+
         window.showAddModal = () => {
             window.toggleModal('add-modal', true);
         };
@@ -907,28 +921,49 @@
                         let daysInMonth = new Date(targetYear, actualMonth + 1, 0).getDate();
 
                         if (isSplit && state.settings.paydays.length > 0) {
-                            // Generate a payment object for EACH payday in the month
+                            // Smart Split: Payments step back from the exact assigned payday
                             const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
-                            sortedPaydays.forEach((pd, pdIndex) => {
-                                let actualPayday = Math.min(pd, daysInMonth);
-                                let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                                let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                            let assignedIdx = sortedPaydays.indexOf(assignedPayday);
+                            if (assignedIdx === -1) assignedIdx = sortedPaydays.length - 1;
+
+                            let cyclePayments = [];
+                            let currYear = targetYear;
+                            let currMonth = actualMonth;
+                            let currIdx = assignedIdx;
+
+                            for (let step = 0; step < sortedPaydays.length; step++) {
+                                let pDay = sortedPaydays[currIdx];
+                                let daysInCurrMonth = new Date(currYear, currMonth + 1, 0).getDate();
+                                let actualPDay = Math.min(pDay, daysInCurrMonth);
+
+                                let paymentDate = new Date(currYear, currMonth, actualPDay);
+                                let dateString = `${currYear}-${(currMonth + 1).toString().padStart(2, '0')}-${actualPDay.toString().padStart(2, '0')}`;
                                 
-                                // Try to map old split payments if they exist, otherwise default to false
-                                // Since structure changed, old data might not map perfectly if switching from non-split to split
-                                const oldPaymentId = `${i}-${pdIndex}`;
+                                const oldPaymentId = `${i}-${currIdx}`;
                                 const isPaid = oldPayments.find(op => op.splitId === oldPaymentId)?.isPaid || false;
 
-                                payments.push({
+                                cyclePayments.unshift({
                                     monthNumber: i + 1,
-                                    splitId: oldPaymentId, // Identifier for mapping
+                                    splitId: oldPaymentId,
                                     isPaid: isPaid,
                                     monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                                     fullDate: dateString,
-                                    assignedPayday: pd,
+                                    assignedPayday: pDay,
                                     amount: paymentAmount
                                 });
-                            });
+
+                                // Step backwards for the next split part
+                                currIdx--;
+                                if (currIdx < 0) {
+                                    currIdx = sortedPaydays.length - 1;
+                                    currMonth--;
+                                    if (currMonth < 0) {
+                                        currMonth = 11;
+                                        currYear--;
+                                    }
+                                }
+                            }
+                            payments.push(...cyclePayments);
                         } else {
                             // Non-split logic (original)
                             let actualPayday = Math.min(assignedPayday, daysInMonth);
@@ -1006,6 +1041,7 @@
                         const payments = [];
                         const paydaysCount = state.settings.paydays.length > 0 ? state.settings.paydays.length : 1;
                         const paymentAmount = isSplit ? (monthlyAmount / paydaysCount) : monthlyAmount;
+                        const oldPayments = [];
 
                         for (let i = 0; i < totalMonths; i++) {
                             let targetMonthIndex = (startMonthNum - 1) + i;
@@ -1015,21 +1051,43 @@
 
                             if (isSplit && state.settings.paydays.length > 0) {
                                 const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
-                                sortedPaydays.forEach((pd, pdIndex) => {
-                                    let actualPayday = Math.min(pd, daysInMonth);
-                                    let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                                    let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                let assignedIdx = sortedPaydays.indexOf(assignedPayday);
+                                if (assignedIdx === -1) assignedIdx = sortedPaydays.length - 1;
+
+                                let cyclePayments = [];
+                                let currYear = targetYear;
+                                let currMonth = actualMonth;
+                                let currIdx = assignedIdx;
+
+                                for (let step = 0; step < sortedPaydays.length; step++) {
+                                    let pDay = sortedPaydays[currIdx];
+                                    let daysInCurrMonth = new Date(currYear, currMonth + 1, 0).getDate();
+                                    let actualPDay = Math.min(pDay, daysInCurrMonth);
+
+                                    let paymentDate = new Date(currYear, currMonth, actualPDay);
+                                    let dateString = `${currYear}-${(currMonth + 1).toString().padStart(2, '0')}-${actualPDay.toString().padStart(2, '0')}`;
                                     
-                                    payments.push({
+                                    cyclePayments.unshift({
                                         monthNumber: i + 1,
-                                        splitId: `${i}-${pdIndex}`,
+                                        splitId: `${i}-${currIdx}`,
                                         isPaid: false,
                                         monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                                         fullDate: dateString,
-                                        assignedPayday: pd,
+                                        assignedPayday: pDay,
                                         amount: paymentAmount
                                     });
-                                });
+
+                                    currIdx--;
+                                    if (currIdx < 0) {
+                                        currIdx = sortedPaydays.length - 1;
+                                        currMonth--;
+                                        if (currMonth < 0) {
+                                            currMonth = 11;
+                                            currYear--;
+                                        }
+                                    }
+                                }
+                                payments.push(...cyclePayments);
                             } else {
                                 let actualPayday = Math.min(assignedPayday, daysInMonth);
                                 let paymentDate = new Date(targetYear, actualMonth, actualPayday);
@@ -1128,24 +1186,46 @@
 
                             if (isSplit && state.settings.paydays.length > 0) {
                                 const sortedPaydays = [...state.settings.paydays].sort((a,b)=>a-b);
-                                sortedPaydays.forEach((pd, pdIndex) => {
-                                    let actualPayday = Math.min(pd, daysInMonth);
-                                    let paymentDate = new Date(targetYear, actualMonth, actualPayday);
-                                    let dateString = `${targetYear}-${(actualMonth + 1).toString().padStart(2, '0')}-${actualPayday.toString().padStart(2, '0')}`;
+                                let assignedIdx = sortedPaydays.indexOf(assignedPayday);
+                                if (assignedIdx === -1) assignedIdx = sortedPaydays.length - 1;
+
+                                let cyclePayments = [];
+                                let currYear = targetYear;
+                                let currMonth = actualMonth;
+                                let currIdx = assignedIdx;
+
+                                for (let step = 0; step < sortedPaydays.length; step++) {
+                                    let pDay = sortedPaydays[currIdx];
+                                    let daysInCurrMonth = new Date(currYear, currMonth + 1, 0).getDate();
+                                    let actualPDay = Math.min(pDay, daysInCurrMonth);
+
+                                    let paymentDate = new Date(currYear, currMonth, actualPDay);
+                                    let dateString = `${currYear}-${(currMonth + 1).toString().padStart(2, '0')}-${actualPDay.toString().padStart(2, '0')}`;
                                     
-                                    const oldPaymentId = `${i}-${pdIndex}`;
+                                    const oldPaymentId = `${i}-${currIdx}`;
                                     const isPaid = oldPayments.find(op => op.splitId === oldPaymentId)?.isPaid || false;
 
-                                    payments.push({
+                                    cyclePayments.unshift({
                                         monthNumber: i + 1,
                                         splitId: oldPaymentId,
                                         isPaid: isPaid,
                                         monthLabel: paymentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                                         fullDate: dateString,
-                                        assignedPayday: pd,
+                                        assignedPayday: pDay,
                                         amount: paymentAmount
                                     });
-                                });
+
+                                    currIdx--;
+                                    if (currIdx < 0) {
+                                        currIdx = sortedPaydays.length - 1;
+                                        currMonth--;
+                                        if (currMonth < 0) {
+                                            currMonth = 11;
+                                            currYear--;
+                                        }
+                                    }
+                                }
+                                payments.push(...cyclePayments);
                             } else {
                                 let actualPayday = Math.min(assignedPayday, daysInMonth);
                                 let paymentDate = new Date(targetYear, actualMonth, actualPayday);
@@ -1191,6 +1271,18 @@
             if (el.classList.contains('hidden')) {
                 el.classList.remove('hidden');
                 icon.style.transform = 'rotate(180deg)';
+            } else {
+                el.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        };
+
+        window.toggleUpcomingMonth = (monthKey) => {
+            const el = document.getElementById(`upcoming-month-${monthKey}`);
+            const icon = document.getElementById(`chevron-upcoming-${monthKey}`);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.style.transform = 'rotate(90deg)';
             } else {
                 el.classList.add('hidden');
                 icon.style.transform = 'rotate(0deg)';
@@ -1447,6 +1539,7 @@
             const generateGroupHTML = (itemsDict, emptyMsg, isNestedByMonth = false) => {
                 let html = '';
                 let hasItems = false;
+                let totalAmount = 0;
 
                 Object.keys(itemsDict).sort((a,b)=>a-b).forEach(pd => {
                     const items = itemsDict[pd];
@@ -1457,6 +1550,7 @@
                         hasItems = true;
                         
                         let groupTotal = items.reduce((sum, item) => sum + (item.payment.amount || item.debt.monthlyAmount), 0);
+                        totalAmount += groupTotal;
 
                         html += `
                             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4">
@@ -1497,7 +1591,7 @@
                 if (!hasItems && !isNestedByMonth) {
                     html = `<div class="p-4 text-center text-slate-400 text-xs sm:text-sm border border-dashed border-slate-200 rounded-xl bg-white">${emptyMsg}</div>`;
                 }
-                return { html, hasItems };
+                return { html, hasItems, totalAmount };
             };
 
             // Render Due This Month
@@ -1519,9 +1613,17 @@
                 if(monthResult.hasItems) {
                     hasAnyUpcoming = true;
                     upcomingHTML += `
-                        <div class="mb-6 last:mb-0">
-                            <h3 class="text-sm font-bold text-slate-600 mb-3 ml-1 border-l-4 border-brand-500 pl-2">${monthName}</h3>
-                            ${monthResult.html}
+                        <div class="mb-4 last:mb-0 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-all">
+                            <div class="bg-slate-50 px-4 py-3 cursor-pointer flex justify-between items-center hover:bg-slate-100 transition-colors select-none" onclick="window.toggleUpcomingMonth('${monthKey}')">
+                                <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                    <i id="chevron-upcoming-${monthKey}" class="fa-solid fa-chevron-right text-slate-400 transition-transform duration-300"></i>
+                                    ${monthName}
+                                </h3>
+                                <span class="text-sm font-bold text-brand-600">${formatMoney(monthResult.totalAmount)}</span>
+                            </div>
+                            <div id="upcoming-month-${monthKey}" class="hidden p-4 border-t border-slate-100 bg-slate-50/50">
+                                ${monthResult.html}
+                            </div>
                         </div>
                     `;
                 }
@@ -1539,6 +1641,15 @@
             let sortedDebts = [...state.debts];
             if (state.filterBorrower !== 'All') {
                 sortedDebts = sortedDebts.filter(d => (d.borrower || 'Unspecified') === state.filterBorrower);
+            }
+            
+            // Apply sorting logic
+            if (state.sortMode === 'name-asc') {
+                sortedDebts.sort((a, b) => a.name.localeCompare(b.name));
+            } else if (state.sortMode === 'name-desc') {
+                sortedDebts.sort((a, b) => b.name.localeCompare(a.name));
+            } else {
+                sortedDebts.sort((a, b) => b.id - a.id); // Default: Newest first based on timestamp ID
             }
 
             container.innerHTML = sortedDebts.map(debt => {
