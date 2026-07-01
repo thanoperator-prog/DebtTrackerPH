@@ -14,6 +14,7 @@
     
     <!-- Updated Favicon -->
     <link rel="icon" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -447,7 +448,6 @@
         import { getFirestore, initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- PWA / STANDALONE APP SETUP (Dynamic Manifest) ---
-        // Using a placeholder image for the icon as requested to fix the cut-off issue
         const iconUrl = "icon.png";
         
         const manifest = {
@@ -1421,7 +1421,6 @@
                 if (state.currentTab === 'log') renderLog();
             } catch (error) {
                 console.error("CRITICAL ERROR IN renderApp:", error);
-                // We don't want the UI to completely break if one section fails to render
             }
         };
 
@@ -1450,20 +1449,15 @@
                 : state.debts;
 
             filteredDebts.forEach(debt => {
-                // Iterate through all unpaid payments, not just the first one
                 debt.payments.forEach((payment, index) => {
                     if (!payment.isPaid) {
                         const [pYear, pMonth, pDay] = payment.fullDate.split('-').map(Number);
                         const paymentDateStripped = stripTime(new Date(pYear, pMonth - 1, pDay));
                         
-                        // Overdue check: For non-split, check against actual exact due date based on payment month
-                        // For split, check against the assigned payday for that specific split payment
                         let exactDueDate;
                         if(debt.isSplit) {
-                            // If split, the exact due date is effectively the assigned payday for that chunk
                             exactDueDate = stripTime(new Date(pYear, pMonth - 1, Math.min(payment.assignedPayday, new Date(pYear, pMonth, 0).getDate())));
                         } else {
-                            // If not split, exact due date is based on user input `dueDay`
                             exactDueDate = stripTime(new Date(pYear, pMonth - 1, Math.min(debt.dueDay, new Date(pYear, pMonth, 0).getDate())));
                         }
                         
@@ -1543,7 +1537,7 @@
 
                 Object.keys(itemsDict).sort((a,b)=>a-b).forEach(pd => {
                     const items = itemsDict[pd];
-                    if(!items) return; // Guard clause
+                    if(!items) return; 
                     items.sort((a,b) => new Date(a.payment.fullDate) - new Date(b.payment.fullDate));
 
                     if (items.length > 0) {
